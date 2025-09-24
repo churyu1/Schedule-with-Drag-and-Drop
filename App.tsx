@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import GanttChart from './components/GanttChart';
-import { useLanguage } from './contexts/LanguageContext';
-import { translations, TranslationKey } from './lib/translations';
-import SettingsIcon from './components/icons/SettingsIcon';
-import ZoomInIcon from './components/icons/ZoomInIcon';
-import ZoomOutIcon from './components/icons/ZoomOutIcon';
-import ProgressLineIcon from './components/icons/ProgressLineIcon';
-import XIcon from './components/icons/XIcon';
-import SettingsModal from './components/SettingsModal';
-import Calendar from './components/Calendar';
-import { Task } from './types';
-import DownloadIcon from './components/icons/DownloadIcon';
-import UploadIcon from './components/icons/UploadIcon';
+import GanttChart from './components/GanttChart.tsx';
+import { useLanguage } from './contexts/LanguageContext.tsx';
+import { translations, TranslationKey } from './lib/translations.ts';
+import SettingsIcon from './components/icons/SettingsIcon.tsx';
+import ZoomInIcon from './components/icons/ZoomInIcon.tsx';
+import ZoomOutIcon from './components/icons/ZoomOutIcon.tsx';
+import ProgressLineIcon from './components/icons/ProgressLineIcon.tsx';
+import XIcon from './components/icons/XIcon.tsx';
+import SettingsModal from './components/SettingsModal.tsx';
+import Calendar from './components/Calendar.tsx';
+import { Task } from './types.ts';
+import DownloadIcon from './components/icons/DownloadIcon.tsx';
+import UploadIcon from './components/icons/UploadIcon.tsx';
 import {
     formatDateUTC,
     addDaysUTC,
@@ -19,8 +19,8 @@ import {
     addWorkingDays,
     addOrSubtractWorkingDays,
     calculateWorkingDays,
-} from './lib/dateUtils';
-import ConfirmModal from './components/ConfirmModal';
+} from './lib/dateUtils.ts';
+import ConfirmModal from './components/ConfirmModal.tsx';
 
 const ZOOM_LEVELS = [8, 12, 18, 24, 40, 64];
 

@@ -1,7 +1,7 @@
 import React from 'react';
-import { useLanguage } from '../contexts/LanguageContext';
-import { translations, TranslationKey } from '../lib/translations';
-import XIcon from './icons/XIcon';
+import { useLanguage } from '../contexts/LanguageContext.tsx';
+import { translations, TranslationKey } from '../lib/translations.ts';
+import XIcon from './icons/XIcon.tsx';
 
 interface ConfirmModalProps {
   title: string;

@@ -1,6 +1,6 @@
 import React from 'react';
-import { useLanguage } from '../contexts/LanguageContext';
-import { translations, TranslationKey } from '../lib/translations';
+import { useLanguage } from '../contexts/LanguageContext.tsx';
+import { translations, TranslationKey } from '../lib/translations.ts';
 
 interface SettingsModalProps {
   onClose: () => void;

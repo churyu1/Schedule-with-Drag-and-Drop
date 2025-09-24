@@ -1,20 +1,20 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import type { Task } from '../types';
-import PlusIcon from './icons/PlusIcon';
-import TrashIcon from './icons/TrashIcon';
-import CalendarIcon from './icons/CalendarIcon';
-import Calendar from './Calendar';
-import { useLanguage } from '../contexts/LanguageContext';
-import { translations, TranslationKey } from '../lib/translations';
-import GripVerticalIcon from './icons/GripVerticalIcon';
-import DuplicateIcon from './icons/DuplicateIcon';
+import type { Task } from '../types.ts';
+import PlusIcon from './icons/PlusIcon.tsx';
+import TrashIcon from './icons/TrashIcon.tsx';
+import CalendarIcon from './icons/CalendarIcon.tsx';
+import Calendar from './Calendar.tsx';
+import { useLanguage } from '../contexts/LanguageContext.tsx';
+import { translations, TranslationKey } from '../lib/translations.ts';
+import GripVerticalIcon from './icons/GripVerticalIcon.tsx';
+import DuplicateIcon from './icons/DuplicateIcon.tsx';
 import { 
     parseUTCDateString, 
     formatDateUTC, 
     addDaysUTC, 
     getDatesInRange,
     calculateWorkingDays,
-} from '../lib/dateUtils';
+} from '../lib/dateUtils.ts';
 
 
 const ZOOM_LEVELS = [8, 12, 18, 24, 40, 64];
