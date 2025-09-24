@@ -1,0 +1,5 @@
+{
+  "name": "Schedule with Drag-and-Drop",
+  "description": "A Gantt chart application for intuitive project scheduling. Drag on the timeline to create tasks, and drag the tasks themselves to adjust their duration and position.",
+  "requestFramePermissions": []
+}
