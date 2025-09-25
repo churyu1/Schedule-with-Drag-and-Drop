@@ -1,20 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext.js';
 
-interface CalendarProps {
-  initialDate?: string; // YYYY/MM/DD
-  taskStartDate?: string;
-  taskEndDate?: string;
-  onSelectDate: (date: string) => void;
-  onClose: () => void;
-  minDate?: string;
-  maxDate?: string;
-  showToday?: boolean;
-  // FIX: Added optional `position` prop to allow dynamic placement.
-  position?: 'top' | 'bottom';
-}
-
-const parseUTCDateString = (dateStr: string): Date | null => {
+const parseUTCDateString = (dateStr) => {
     if (!/^\d{4}\/\d{2}\/\d{2}$/.test(dateStr)) return null;
     const parts = dateStr.split('/').map(p => parseInt(p, 10));
     const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
@@ -24,7 +11,7 @@ const parseUTCDateString = (dateStr: string): Date | null => {
     return date;
 };
 
-const formatDateUTC = (date: Date): string => {
+const formatDateUTC = (date) => {
   const year = date.getUTCFullYear();
   const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
   const day = date.getUTCDate().toString().padStart(2, '0');
@@ -36,8 +23,7 @@ const DAYS_OF_WEEK = {
     ja: ['日', '月', '火', '水', '木', '金', '土'],
 }
 
-// FIX: Added `position` to props destructuring and provided a default value.
-const Calendar: React.FC<CalendarProps> = ({ initialDate, taskStartDate, taskEndDate, onSelectDate, minDate, maxDate, showToday = false, position = 'bottom' }) => {
+const Calendar = ({ initialDate, taskStartDate, taskEndDate, onSelectDate, minDate, maxDate, showToday = false, position = 'bottom' }) => {
   const { language } = useLanguage();
   
   const getInitialDisplayDate = () => {
@@ -68,7 +54,7 @@ const Calendar: React.FC<CalendarProps> = ({ initialDate, taskStartDate, taskEnd
   }, [showToday]);
 
 
-  const changeMonth = (amount: number) => {
+  const changeMonth = (amount) => {
     setDisplayDate(prev => {
         const newDate = new Date(prev.getTime());
         newDate.setUTCMonth(newDate.getUTCMonth() + amount);
@@ -83,45 +69,42 @@ const Calendar: React.FC<CalendarProps> = ({ initialDate, taskStartDate, taskEnd
     const firstDayOfMonth = new Date(Date.UTC(year, month, 1)).getUTCDay();
     const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 
-    const days: (Date|null)[] = [];
-    // Pad start with empty cells
+    const days = [];
     for (let i = 0; i < firstDayOfMonth; i++) {
         days.push(null);
     }
-    // Fill in days of the month
     for (let i = 1; i <= daysInMonth; i++) {
         days.push(new Date(Date.UTC(year, month, i)));
     }
     return days;
   }, [displayDate]);
 
-  const handleDateClick = (date: Date) => {
+  const handleDateClick = (date) => {
       onSelectDate(formatDateUTC(date));
   };
   
-  // FIX: Determined positioning classes based on the `position` prop.
   const positionClasses = position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2';
   
   return (
-    <div data-calendar-popover className={`absolute ${positionClasses} w-72 bg-white border border-gray-300 rounded-lg shadow-xl z-40 p-2 font-sans`}>
-      <div className="flex justify-between items-center mb-2 px-2">
-        <button onClick={() => changeMonth(-1)} className="p-1 rounded-full hover:bg-gray-100" aria-label="Previous month">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-        </button>
-        <div className="font-semibold text-sm text-gray-700">
-            {displayDate.toLocaleString(language === 'ja' ? 'ja-JP' : 'en-US', { year: 'numeric', month: 'long', timeZone: 'UTC' })}
-        </div>
-        <button onClick={() => changeMonth(1)} className="p-1 rounded-full hover:bg-gray-100" aria-label="Next month">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
-        </button>
-      </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500 mb-1">
-        {DAYS_OF_WEEK[language].map(day => <div key={day}>{day}</div>)}
-      </div>
-      <div className="grid grid-cols-7 gap-1">
-        {calendarGrid.map((date, index) => {
+    React.createElement('div', { 'data-calendar-popover': true, className: `absolute ${positionClasses} w-72 bg-white border border-gray-300 rounded-lg shadow-xl z-40 p-2 font-sans` },
+      React.createElement('div', { className: "flex justify-between items-center mb-2 px-2" },
+        React.createElement('button', { onClick: () => changeMonth(-1), className: "p-1 rounded-full hover:bg-gray-100", 'aria-label': "Previous month" },
+            React.createElement('svg', { className: "w-5 h-5", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" }, React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M15 19l-7-7 7-7" }))
+        ),
+        React.createElement('div', { className: "font-semibold text-sm text-gray-700" },
+            displayDate.toLocaleString(language === 'ja' ? 'ja-JP' : 'en-US', { year: 'numeric', month: 'long', timeZone: 'UTC' })
+        ),
+        React.createElement('button', { onClick: () => changeMonth(1), className: "p-1 rounded-full hover:bg-gray-100", 'aria-label': "Next month" },
+            React.createElement('svg', { className: "w-5 h-5", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" }, React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M9 5l7 7-7 7" }))
+        )
+      ),
+      React.createElement('div', { className: "grid grid-cols-7 gap-1 text-center text-xs text-gray-500 mb-1" },
+        DAYS_OF_WEEK[language].map(day => React.createElement('div', { key: day }, day))
+      ),
+      React.createElement('div', { className: "grid grid-cols-7 gap-1" },
+        calendarGrid.map((date, index) => {
             if (!date) {
-                return <div key={index}></div>;
+                return React.createElement('div', { key: index });
             }
 
             const dayTime = date.getTime();
@@ -164,19 +147,19 @@ const Calendar: React.FC<CalendarProps> = ({ initialDate, taskStartDate, taskEnd
             }
             
             return (
-                <div key={index} className="flex justify-center items-center">
-                    <button 
-                        onClick={() => !isDisabled && handleDateClick(date)}
-                        disabled={isDisabled}
-                        className={classNames.join(' ')}
-                    >
-                        <span className="relative">{date.getUTCDate()}</span>
-                    </button>
-                </div>
+                React.createElement('div', { key: index, className: "flex justify-center items-center" },
+                    React.createElement('button', { 
+                        onClick: () => !isDisabled && handleDateClick(date),
+                        disabled: isDisabled,
+                        className: classNames.join(' ')
+                    },
+                        React.createElement('span', { className: "relative" }, date.getUTCDate())
+                    )
+                )
             )
-        })}
-      </div>
-    </div>
+        })
+      )
+    )
   );
 };
 

@@ -1,21 +1,14 @@
-import React, { createContext, useState, useContext, ReactNode, Dispatch, SetStateAction } from 'react';
+import React, { createContext, useState, useContext } from 'react';
 
-export type Language = 'ja' | 'en';
+const LanguageContext = createContext(undefined);
 
-interface LanguageContextType {
-  language: Language;
-  setLanguage: Dispatch<SetStateAction<Language>>;
-}
-
-const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
-
-export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [language, setLanguage] = useState<Language>('ja'); // Default to Japanese
+export const LanguageProvider = ({ children }) => {
+  const [language, setLanguage] = useState('ja'); // Default to Japanese
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage }}>
-      {children}
-    </LanguageContext.Provider>
+    React.createElement(LanguageContext.Provider, { value: { language, setLanguage } },
+      children
+    )
   );
 };
 

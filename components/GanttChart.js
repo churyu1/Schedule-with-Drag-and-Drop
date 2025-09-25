@@ -1,11 +1,10 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import type { Task } from '../types.js';
 import PlusIcon from './icons/PlusIcon.js';
 import TrashIcon from './icons/TrashIcon.js';
 import CalendarIcon from './icons/CalendarIcon.js';
 import Calendar from './Calendar.js';
 import { useLanguage } from '../contexts/LanguageContext.js';
-import { translations, TranslationKey } from '../lib/translations.js';
+import { translations } from '../lib/translations.js';
 import GripVerticalIcon from './icons/GripVerticalIcon.js';
 import DuplicateIcon from './icons/DuplicateIcon.js';
 import { 
@@ -19,56 +18,7 @@ import {
 
 const ZOOM_LEVELS = [8, 12, 18, 24, 40, 64];
 
-type DragActionType = 'move' | 'resize-start' | 'resize-end';
-
-interface GanttChartProps {
-  projectName: string;
-  setProjectName: React.Dispatch<React.SetStateAction<string>>;
-  projectStart: string;
-  setProjectStart: React.Dispatch<React.SetStateAction<string>>;
-  projectEnd: string;
-  setProjectEnd: React.Dispatch<React.SetStateAction<string>>;
-  creationDate: string;
-  setCreationDate: React.Dispatch<React.SetStateAction<string>>;
-  creatorName: string;
-  setCreatorName: React.Dispatch<React.SetStateAction<string>>;
-  tasks: Task[];
-  holidays: Set<number>;
-  columnVisibility: {
-    assignee: boolean;
-    startDate: boolean;
-    endDate: boolean;
-    duration: boolean;
-    progress: boolean;
-    manHours: boolean;
-  };
-  zoomIndex: number;
-  progressLineDate: string | null;
-  baseColor: string;
-  progressColor: string;
-  textColor: string;
-  progressLineColor: string;
-  rowHeight: number;
-  onDeleteAllTasks: () => void;
-  onAddTask: () => void;
-  onDeleteTask: (id: string) => void;
-  onDuplicateTask: (id: string) => void;
-  onTaskChange: (id: string, field: keyof Task, value: string | number | undefined) => void;
-  onDurationChange: (task: Task, newDurationStr: string) => void;
-  onProgressChange: (taskId: string, newProgressStr: string) => void;
-  onManHoursChange: (taskId: string, newManHoursStr: string) => void;
-  onTaskDateSet: (taskId: string, startDate: string, endDate: string) => void;
-  onTaskDragUpdate: (
-    taskId: string,
-    actionType: DragActionType,
-    initialStartDate: Date,
-    initialEndDate: Date,
-    dayOffset: number
-  ) => void;
-  onTaskReorder: (draggedTaskId: string, dropIndex: number) => void;
-}
-
-const GanttChart: React.FC<GanttChartProps> = ({
+const GanttChart = ({
   projectName,
   setProjectName,
   projectStart,
@@ -102,33 +52,27 @@ const GanttChart: React.FC<GanttChartProps> = ({
   onTaskReorder,
 }) => {
   const { language } = useLanguage();
-  const t = useCallback((key: TranslationKey) => {
+  const t = useCallback((key) => {
     return translations[key][language];
   }, [language]);
 
-  const [activeCalendar, setActiveCalendar] = useState<{ type: string; taskId?: string, position: 'top' | 'bottom' } | null>(null);
+  const [activeCalendar, setActiveCalendar] = useState(null);
   
-  const timelineHeaderRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const taskRowRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-  const taskDetailsHeaderRef = useRef<HTMLDivElement>(null);
-  const ganttGridRef = useRef<HTMLDivElement>(null);
+  const timelineHeaderRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const taskRowRefs = useRef({});
+  const taskDetailsHeaderRef = useRef(null);
+  const ganttGridRef = useRef(null);
 
-  const [dragPreview, setDragPreview] = useState<{ taskId: string; start: string; end: string; } | null>(null);
-  const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; content: string } | null>(null);
+  const [dragPreview, setDragPreview] = useState(null);
+  const [tooltip, setTooltip] = useState(null);
   
-  const [dragAction, setDragAction] = useState<{
-    type: DragActionType;
-    taskId: string;
-    initialX: number;
-    initialStartDate: Date;
-    initialEndDate: Date;
-  } | null>(null);
+  const [dragAction, setDragAction] = useState(null);
 
-  const [reorderState, setReorderState] = useState<{ draggedTaskId: string; dropIndex: number | null } | null>(null);
+  const [reorderState, setReorderState] = useState(null);
   const [totalGridWidth, setTotalGridWidth] = useState(0);
 
-  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+  const handleInputFocus = (e) => {
     e.target.select();
   };
 
@@ -151,8 +95,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
   const dayWidth = useMemo(() => ZOOM_LEVELS[zoomIndex], [zoomIndex]);
 
-  const openCalendar = useCallback((e: React.MouseEvent, type: string, taskId?: string) => {
-    // Per user request, force task-related calendars to always open downwards.
+  const openCalendar = useCallback((e, type, taskId) => {
     if (type === 'taskStartDate' || type === 'taskEndDate') {
       setActiveCalendar(prev => {
         const isActive = prev?.type === type && prev?.taskId === taskId;
@@ -161,25 +104,21 @@ const GanttChart: React.FC<GanttChartProps> = ({
       return;
     }
     
-    // For other calendars (project header), use dynamic positioning to avoid clipping.
     const button = e.currentTarget;
     const buttonRect = button.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
     const spaceBelow = viewportHeight - buttonRect.bottom;
     const spaceAbove = buttonRect.top;
-    const calendarHeight = 320; // Estimated height of the calendar popover
+    const calendarHeight = 320; 
 
-    let position: 'top' | 'bottom' = 'bottom'; // Default to bottom
+    let position = 'bottom';
 
-    // Prioritize opening downwards if there's enough space.
     if (spaceBelow >= calendarHeight) {
         position = 'bottom';
     } 
-    // Otherwise, try opening upwards if there's enough space.
     else if (spaceAbove >= calendarHeight) {
         position = 'top';
     } 
-    // If not enough space either way, open where there is more space to minimize clipping.
     else if (spaceAbove > spaceBelow) {
         position = 'top';
     }
@@ -193,8 +132,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
   useEffect(() => {
     if (!activeCalendar) return;
 
-    const handleClickOutside = (event: MouseEvent) => {
-        if (!(event.target as HTMLElement).closest('[data-calendar-popover]') && !(event.target as HTMLElement).closest('[data-calendar-toggle]')) {
+    const handleClickOutside = (event) => {
+        if (!event.target.closest('[data-calendar-popover]') && !event.target.closest('[data-calendar-toggle]')) {
              setActiveCalendar(null);
         }
     };
@@ -206,7 +145,6 @@ const GanttChart: React.FC<GanttChartProps> = ({
 }, [activeCalendar]);
 
     useEffect(() => {
-        // Ensure refs are cleaned up to prevent memory leaks
         const taskIds = new Set(tasks.map(t => t.id));
         Object.keys(taskRowRefs.current).forEach(taskId => {
             if (!taskIds.has(taskId)) {
@@ -222,24 +160,22 @@ const GanttChart: React.FC<GanttChartProps> = ({
     return getDatesInRange(start, end);
   }, [projectStart, projectEnd]);
 
-  const getTaskDuration = useCallback((startDateStr: string, endDateStr: string): number => {
+  const getTaskDuration = useCallback((startDateStr, endDateStr) => {
     const start = parseUTCDateString(startDateStr);
     const end = parseUTCDateString(endDateStr);
     if (!start || !end) return 0;
     return calculateWorkingDays(start, end, holidays);
   }, [holidays]);
     
-  const getGridPosition = (start: Date, end: Date) => {
+  const getGridPosition = (start, end) => {
     if (dateArray.length === 0 || end < start) return { gridColumn: '1 / span 1', opacity: 0 };
 
     const projectStartDate = dateArray[0];
     const projectEndDate = dateArray[dateArray.length - 1];
 
-    // Find the intersection of the task and project timelines for rendering
     const renderStart = new Date(Math.max(start.getTime(), projectStartDate.getTime()));
     const renderEnd = new Date(Math.min(end.getTime(), projectEndDate.getTime()));
 
-    // If there is no intersection, the task is not visible
     if (renderEnd < renderStart) {
       return { gridColumn: '1 / span 1', opacity: 0 };
     }
@@ -254,13 +190,13 @@ const GanttChart: React.FC<GanttChartProps> = ({
     return { gridColumn: `${startIndex + 1} / ${endIndex + 2}` };
   };
   
-  const getTaskSegments = useCallback((task: Task): {startDate: Date, endDate: Date}[] => {
+  const getTaskSegments = useCallback((task) => {
     const start = parseUTCDateString(task.startDate);
     const end = parseUTCDateString(task.endDate);
     if (!start || !end || end < start) return [];
 
-    const segments: {startDate: Date, endDate: Date}[] = [];
-    let segmentStart: Date | null = null;
+    const segments = [];
+    let segmentStart = null;
     
     const current = new Date(start.getTime());
     while(current.getTime() <= end.getTime()){
@@ -285,7 +221,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
   }, [holidays]);
 
   const monthHeaders = useMemo(() => {
-    const months: { formatted: string; days: number }[] = [];
+    const months = [];
     if (dateArray.length === 0) return months;
 
     let currentMonth = -1;
@@ -336,19 +272,13 @@ const GanttChart: React.FC<GanttChartProps> = ({
     return headers;
   }, [dateArray, dayWidth]);
 
-  const getDateFromX = useCallback((x: number) => {
-    // This implementation calculates the position relative to the main grid element,
-    // which correctly accounts for horizontal scrolling.
+  const getDateFromX = useCallback((x) => {
     if (!ganttGridRef.current || !taskDetailsHeaderRef.current || dateArray.length === 0) return null;
 
     const gridRect = ganttGridRef.current.getBoundingClientRect();
     const detailsWidth = taskDetailsHeaderRef.current.offsetWidth;
     
-    // The timeline starts visually after the task details column.
-    // The absolute left position of the timeline content's start.
     const timelineStartLeft = gridRect.left + detailsWidth;
-
-    // The mouse position relative to the beginning of the timeline content.
     const relativeX = x - timelineStartLeft;
 
     if (dayWidth <= 0 || relativeX < 0) return null;
@@ -361,11 +291,10 @@ const GanttChart: React.FC<GanttChartProps> = ({
     return null;
   }, [dateArray, dayWidth]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>, taskId: string) => {
+  const handleMouseDown = useCallback((e, taskId) => {
       const startDate = getDateFromX(e.clientX);
       if (startDate) {
           if (holidays.has(startDate.getUTCDay())) {
-            // Prevent task creation on holidays
             return;
           }
           const startDateStr = formatDateUTC(startDate);
@@ -374,32 +303,28 @@ const GanttChart: React.FC<GanttChartProps> = ({
       setTooltip(null);
   }, [getDateFromX, holidays]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseMove = useCallback((e) => {
     const timelineRowCell = e.currentTarget;
 
-    // Handle active drag preview update
     if(dragPreview) {
         const currentDate = getDateFromX(e.clientX);
         if (currentDate) {
             setDragPreview(prev => (prev ? { ...prev, end: formatDateUTC(currentDate) } : null));
         }
-        return; // Don't do cursor/tooltip logic while actively creating a task
+        return;
     }
 
-    // Let the global drag styles take over during other drag actions
     if (dragAction || reorderState) {
         timelineRowCell.style.cursor = '';
         setTooltip(null);
         return;
     }
     
-    // Handle cursor and tooltip for idle state
     const taskId = timelineRowCell.dataset.taskRowId;
     const task = tasks.find(t => t.id === taskId);
 
     if (task && !task.startDate && !task.endDate) {
         const dateUnderCursor = getDateFromX(e.clientX);
-        // Treat out of bounds as not-allowed
         const isHolidayUnderCursor = dateUnderCursor ? holidays.has(dateUnderCursor.getUTCDay()) : true;
 
         if (isHolidayUnderCursor) {
@@ -415,14 +340,12 @@ const GanttChart: React.FC<GanttChartProps> = ({
             });
         }
     } else {
-        // Task has dates, or is not a valid task row. Reset cursor.
         timelineRowCell.style.cursor = 'default';
         setTooltip(null);
     }
   }, [dragPreview, dragAction, reorderState, tasks, getDateFromX, holidays, t, setDragPreview]);
   
-  const handleMouseLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // Reset cursor and tooltip when mouse leaves the row
+  const handleMouseLeave = useCallback((e) => {
     e.currentTarget.style.cursor = 'default';
     setTooltip(null);
   }, []);
@@ -441,7 +364,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
     return () => window.removeEventListener('mouseup', handleMouseUpGlobal);
   }, [dragPreview, onTaskDateSet]);
 
-  const handleDragStart = useCallback((e: React.MouseEvent, task: Task, type: DragActionType) => {
+  const handleDragStart = useCallback((e, task, type) => {
     e.stopPropagation();
     const start = parseUTCDateString(task.startDate);
     const end = parseUTCDateString(task.endDate);
@@ -456,7 +379,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
     });
   }, []);
 
-  const handleDragMove = useCallback((e: MouseEvent) => {
+  const handleDragMove = useCallback((e) => {
     if (!dragAction) return;
     if (dayWidth <= 0) return;
 
@@ -471,7 +394,6 @@ const GanttChart: React.FC<GanttChartProps> = ({
         dayOffset
     );
 
-    // If resizing causes start/end to flip, update the drag action type
     const task = tasks.find(t => t.id === dragAction.taskId);
     if (task) {
         const newStart = parseUTCDateString(task.startDate);
@@ -491,7 +413,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
   }, []);
   
   useEffect(() => {
-    const getCursor = (type: DragActionType) => {
+    const getCursor = (type) => {
       switch (type) {
         case 'move': return 'grabbing';
         case 'resize-start':
@@ -518,12 +440,12 @@ const GanttChart: React.FC<GanttChartProps> = ({
   }, [dragAction, handleDragMove, handleDragEnd]);
 
 
-  const handleReorderStart = useCallback((e: React.MouseEvent, taskId: string) => {
+  const handleReorderStart = useCallback((e, taskId) => {
     e.preventDefault();
     setReorderState({ draggedTaskId: taskId, dropIndex: null });
   }, []);
 
-  const handleReorderMove = useCallback((e: MouseEvent) => {
+  const handleReorderMove = useCallback((e) => {
     if (!reorderState) return;
 
     const positions = tasks.map(task => {
@@ -534,7 +456,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
     }).filter(p => p.top !== -1);
 
     const target = positions.find(p => e.clientY >= p.top && e.clientY <= p.bottom);
-    let newDropIndex: number | null = null;
+    let newDropIndex = null;
     if (target) {
         const targetIndex = tasks.findIndex(t => t.id === target.id);
         newDropIndex = e.clientY < target.mid ? targetIndex : targetIndex + 1;
@@ -637,7 +559,6 @@ const GanttChart: React.FC<GanttChartProps> = ({
     const spaceAboveBelowBar = (rowHeight - taskBarHeight) / 2;
     const finalBaselineX = taskDetailsWidth + baselineX;
 
-    // Start with a vertical line through the timeline header.
     let path = `M ${finalBaselineX} 0 L ${finalBaselineX} ${headerHeight}`;
     
     if (tasks.length > 0 && taskProgressXs.length > 0) {
@@ -649,16 +570,9 @@ const GanttChart: React.FC<GanttChartProps> = ({
             const barBottomY = rowTopY + rowHeight - spaceAboveBelowBar;
             const rowBottomY = rowTopY + rowHeight;
             
-            // From previous point (or header) to the top of the task bar at baseline
             path += ` L ${finalBaselineX} ${barTopY}`;
-            
-            // To the actual progress point at the center of the bar
             path += ` L ${progressX} ${barCenterY}`;
-            
-            // Back to the baseline at the bottom of the bar
             path += ` L ${finalBaselineX} ${barBottomY}`;
-            
-            // And finally down to the bottom of the row at baseline, to connect to the next task
             path += ` L ${finalBaselineX} ${rowBottomY}`;
         });
     }
@@ -673,395 +587,330 @@ const GanttChart: React.FC<GanttChartProps> = ({
   }, [tasks]);
 
   return (
-    <div className="bg-white rounded-lg shadow-lg flex flex-col max-h-[calc(100vh-16rem)] sm:max-h-[calc(100vh-14rem)]">
-      {tooltip?.visible && (
-        <div
-            className="fixed bg-gray-800 text-white text-xs rounded py-1 px-2 pointer-events-none shadow-lg"
-            style={{
-                top: tooltip.y + 20,
-                left: tooltip.x + 15,
-                zIndex: 1000,
-            }}
-        >
-            {tooltip.content}
-        </div>
-      )}
-      <div className="p-4 sm:p-6 flex-shrink-0 border-b">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 items-end">
-          {/* Combined Row 1: Project Name, Creation Date, Creator */}
-          <div className="md:col-span-2 flex flex-wrap items-end gap-x-4 gap-y-2">
-            {/* Project Name */}
-            <div className="flex-grow min-w-[300px]">
-              <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-1">{t('projectNameLabel')}</label>
-              <input
-                type="text"
-                id="projectName"
-                value={projectName}
-                onChange={e => setProjectName(e.target.value)}
-                onFocus={handleInputFocus}
-                placeholder={t('projectNamePlaceholder')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-base font-semibold focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            {/* Creation Date */}
-            <div className="relative w-36 flex-shrink-0">
-              <label htmlFor="creationDate" className="block text-sm font-medium text-gray-700 mb-1">{t('creationDate')}</label>
-              <div className="relative">
-                <input type="text" id="creationDate" value={creationDate} onChange={e => setCreationDate(e.target.value)} onFocus={handleInputFocus} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" />
-                <button
-                  data-calendar-toggle
-                  onClick={(e) => openCalendar(e, 'creationDate')}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600 transition-colors"
-                  aria-label={t('openCalendar')}
-                >
-                  <CalendarIcon className="w-5 h-5" />
-                </button>
-              </div>
-              {activeCalendar?.type === 'creationDate' && (
-                <Calendar
-                  initialDate={creationDate}
-                  onSelectDate={(date) => {
-                    setCreationDate(date);
-                    setActiveCalendar(null);
-                  }}
-                  onClose={() => setActiveCalendar(null)}
-                  showToday={true}
-                  position={activeCalendar.position}
-                />
-              )}
-            </div>
-
-            {/* Creator */}
-            <div className="w-36 flex-shrink-0">
-              <label htmlFor="creatorName" className="block text-sm font-medium text-gray-700 mb-1">{t('creator')}</label>
-              <input
-                type="text"
-                id="creatorName"
-                value={creatorName}
-                onChange={e => setCreatorName(e.target.value)}
-                onFocus={handleInputFocus}
-                placeholder={t('creator')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-
-          {/* Project Start Date */}
-          <div className="relative">
-            <label htmlFor="projectStart" className="block text-sm font-medium text-gray-700 mb-1">{t('projectStartDate')}</label>
-            <div className="relative">
-              <input type="text" id="projectStart" value={projectStart} onChange={e => setProjectStart(e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" />
-              <button
-                data-calendar-toggle
-                onClick={(e) => openCalendar(e, 'projectStart')}
-                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600 transition-colors"
-                aria-label={t('openCalendar')}
-              >
-                <CalendarIcon className="w-5 h-5" />
-              </button>
-            </div>
-            {activeCalendar?.type === 'projectStart' && (
-              <Calendar
-                initialDate={projectStart}
-                onSelectDate={(date) => {
-                  setProjectStart(date);
+    React.createElement('div', { className: "bg-white rounded-lg shadow-lg flex flex-col max-h-[calc(100vh-16rem)] sm:max-h-[calc(100vh-14rem)]" },
+      tooltip?.visible && React.createElement('div', {
+        className: "fixed bg-gray-800 text-white text-xs rounded py-1 px-2 pointer-events-none shadow-lg",
+        style: {
+          top: tooltip.y + 20,
+          left: tooltip.x + 15,
+          zIndex: 1000,
+        }
+      }, tooltip.content),
+      React.createElement('div', { className: "p-4 sm:p-6 flex-shrink-0 border-b" },
+        React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 items-end" },
+          React.createElement('div', { className: "md:col-span-2 flex flex-wrap items-end gap-x-4 gap-y-2" },
+            React.createElement('div', { className: "flex-grow min-w-[300px]" },
+              React.createElement('label', { htmlFor: "projectName", className: "block text-sm font-medium text-gray-700 mb-1" }, t('projectNameLabel')),
+              React.createElement('input', {
+                type: "text",
+                id: "projectName",
+                value: projectName,
+                onChange: e => setProjectName(e.target.value),
+                onFocus: handleInputFocus,
+                placeholder: t('projectNamePlaceholder'),
+                className: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-base font-semibold focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              })
+            ),
+            React.createElement('div', { className: "relative w-36 flex-shrink-0" },
+              React.createElement('label', { htmlFor: "creationDate", className: "block text-sm font-medium text-gray-700 mb-1" }, t('creationDate')),
+              React.createElement('div', { className: "relative" },
+                React.createElement('input', { type: "text", id: "creationDate", value: creationDate, onChange: e => setCreationDate(e.target.value), onFocus: handleInputFocus, placeholder: t('dateFormatPlaceholder'), className: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" }),
+                React.createElement('button', {
+                  'data-calendar-toggle': true,
+                  onClick: (e) => openCalendar(e, 'creationDate'),
+                  className: "absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600 transition-colors",
+                  'aria-label': t('openCalendar')
+                }, React.createElement(CalendarIcon, { className: "w-5 h-5" }))
+              ),
+              activeCalendar?.type === 'creationDate' && React.createElement(Calendar, {
+                initialDate: creationDate,
+                onSelectDate: (date) => {
+                  setCreationDate(date);
                   setActiveCalendar(null);
-                }}
-                onClose={() => setActiveCalendar(null)}
-                position={activeCalendar.position}
-              />
-            )}
-          </div>
-
-          {/* Project End Date */}
-          <div className="relative">
-            <label htmlFor="projectEnd" className="block text-sm font-medium text-gray-700 mb-1">{t('projectEndDate')}</label>
-            <div className="relative">
-              <input type="text" id="projectEnd" value={projectEnd} onChange={e => setProjectEnd(e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" />
-              <button
-                data-calendar-toggle
-                onClick={(e) => openCalendar(e, 'projectEnd')}
-                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600 transition-colors"
-                aria-label={t('openCalendar')}
-              >
-                <CalendarIcon className="w-5 h-5" />
-              </button>
-            </div>
-            {activeCalendar?.type === 'projectEnd' && (
-              <Calendar
-                initialDate={projectEnd}
-                onSelectDate={(date) => {
-                  setProjectEnd(date);
-                  setActiveCalendar(null);
-                }}
-                onClose={() => setActiveCalendar(null)}
-                position={activeCalendar.position}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div ref={scrollContainerRef} className="relative overflow-auto flex-grow">
-        <div
-          ref={ganttGridRef}
-          className="gantt-grid min-w-[1200px] grid relative"
-          style={{
+                },
+                onClose: () => setActiveCalendar(null),
+                showToday: true,
+                position: activeCalendar.position
+              })
+            ),
+            React.createElement('div', { className: "w-36 flex-shrink-0" },
+              React.createElement('label', { htmlFor: "creatorName", className: "block text-sm font-medium text-gray-700 mb-1" }, t('creator')),
+              React.createElement('input', {
+                type: "text",
+                id: "creatorName",
+                value: creatorName,
+                onChange: e => setCreatorName(e.target.value),
+                onFocus: handleInputFocus,
+                placeholder: t('creator'),
+                className: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              })
+            )
+          ),
+          React.createElement('div', { className: "relative" },
+            React.createElement('label', { htmlFor: "projectStart", className: "block text-sm font-medium text-gray-700 mb-1" }, t('projectStartDate')),
+            React.createElement('div', { className: "relative" },
+              React.createElement('input', { type: "text", id: "projectStart", value: projectStart, onChange: e => setProjectStart(e.target.value), placeholder: t('dateFormatPlaceholder'), className: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" }),
+              React.createElement('button', {
+                'data-calendar-toggle': true,
+                onClick: (e) => openCalendar(e, 'projectStart'),
+                className: "absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600 transition-colors",
+                'aria-label': t('openCalendar')
+              }, React.createElement(CalendarIcon, { className: "w-5 h-5" }))
+            ),
+            activeCalendar?.type === 'projectStart' && React.createElement(Calendar, {
+              initialDate: projectStart,
+              onSelectDate: (date) => {
+                setProjectStart(date);
+                setActiveCalendar(null);
+              },
+              onClose: () => setActiveCalendar(null),
+              position: activeCalendar.position
+            })
+          ),
+          React.createElement('div', { className: "relative" },
+            React.createElement('label', { htmlFor: "projectEnd", className: "block text-sm font-medium text-gray-700 mb-1" }, t('projectEndDate')),
+            React.createElement('div', { className: "relative" },
+              React.createElement('input', { type: "text", id: "projectEnd", value: projectEnd, onChange: e => setProjectEnd(e.target.value), placeholder: t('dateFormatPlaceholder'), className: "w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" }),
+              React.createElement('button', {
+                'data-calendar-toggle': true,
+                onClick: (e) => openCalendar(e, 'projectEnd'),
+                className: "absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600 transition-colors",
+                'aria-label': t('openCalendar')
+              }, React.createElement(CalendarIcon, { className: "w-5 h-5" }))
+            ),
+            activeCalendar?.type === 'projectEnd' && React.createElement(Calendar, {
+              initialDate: projectEnd,
+              onSelectDate: (date) => {
+                setProjectEnd(date);
+                setActiveCalendar(null);
+              },
+              onClose: () => setActiveCalendar(null),
+              position: activeCalendar.position
+            })
+          )
+        )
+      ),
+      React.createElement('div', { ref: scrollContainerRef, className: "relative overflow-auto flex-grow" },
+        React.createElement('div', {
+          ref: ganttGridRef,
+          className: "gantt-grid min-w-[1200px] grid relative",
+          style: {
             gridTemplateColumns: `auto 1fr`,
             gridTemplateRows: `auto repeat(${tasks.length}, ${rowHeight}px)`,
-          }}
-        >
-          {/* Top-left corner */}
-          <div ref={taskDetailsHeaderRef} className="sticky top-0 left-0 bg-slate-100 p-2 border-b border-r border-gray-200 font-semibold text-slate-600 text-sm flex items-center z-30">
-            <div className="flex items-center w-full gap-1">
-              <div className="w-6 flex-shrink-0" /> {/* Spacer for Grip Icon */}
-              <div className="flex-grow min-w-0 p-1">{t('taskDetails')}</div>
-              {columnVisibility.assignee && <div className="w-24 flex-shrink-0 p-1 text-xs text-center">{t('assignee')}</div>}
-              {columnVisibility.startDate && <div className="w-24 flex-shrink-0 p-1 text-xs text-center">{t('startDate')}</div>}
-              {columnVisibility.endDate && <div className="w-24 flex-shrink-0 p-1 text-xs text-center">{t('endDate')}</div>}
-              {columnVisibility.duration && <div className="w-16 flex-shrink-0 p-1 text-xs text-center">{t('duration')}</div>}
-              {columnVisibility.progress && <div className="w-20 flex-shrink-0 p-1 text-xs text-center">{t('progress')}</div>}
-              {columnVisibility.manHours && (
-                <div className="w-20 flex-shrink-0 p-1 text-xs text-center">
-                  <div className="flex flex-col items-center justify-center -space-y-1">
-                    <span>{t('manHours')}</span>
-                    <span className="text-[10px] text-slate-500 font-normal">
-                      ({t('total')}: {totalManHours.toLocaleString(undefined, { maximumFractionDigits: 1 })})
-                    </span>
-                  </div>
-                </div>
-              )}
-              <div className="w-16 flex-shrink-0 flex items-center justify-end">
-                 <button 
-                    onClick={onDeleteAllTasks} 
-                    className="text-gray-400 hover:text-red-500 p-1 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
-                    title={t('deleteAllTasks')}
-                    disabled={tasks.length === 0}
-                  >
-                      <TrashIcon />
-                  </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Date Headers */}
-          <div
-            className="sticky top-0 z-10 bg-slate-50 border-b border-gray-200"
-            style={{
-              gridColumn: `2 / span 1`,
-            }}
-            ref={timelineHeaderRef}
-          >
-            <div className="grid" style={{ gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` }}>
-              {monthHeaders.map((month, index) => (
-                <div key={index} className="text-center font-semibold text-slate-600 text-sm py-1 border-r border-gray-400" style={{ gridColumn: `span ${month.days}` }}>
-                  {month.formatted}
-                </div>
-              ))}
-            </div>
-            <div className="grid" style={{ gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` }}>
-              {dateHeaders.map(({ date, span, isLastDayOfMonth }, index) => {
+          }
+        },
+          React.createElement('div', { ref: taskDetailsHeaderRef, className: "sticky top-0 left-0 bg-slate-100 p-2 border-b border-r border-gray-200 font-semibold text-slate-600 text-sm flex items-center z-30" },
+            React.createElement('div', { className: "flex items-center w-full gap-1" },
+              React.createElement('div', { className: "w-6 flex-shrink-0" }),
+              React.createElement('div', { className: "flex-grow min-w-0 p-1" }, t('taskDetails')),
+              columnVisibility.assignee && React.createElement('div', { className: "w-24 flex-shrink-0 p-1 text-xs text-center" }, t('assignee')),
+              columnVisibility.startDate && React.createElement('div', { className: "w-24 flex-shrink-0 p-1 text-xs text-center" }, t('startDate')),
+              columnVisibility.endDate && React.createElement('div', { className: "w-24 flex-shrink-0 p-1 text-xs text-center" }, t('endDate')),
+              columnVisibility.duration && React.createElement('div', { className: "w-16 flex-shrink-0 p-1 text-xs text-center" }, t('duration')),
+              columnVisibility.progress && React.createElement('div', { className: "w-20 flex-shrink-0 p-1 text-xs text-center" }, t('progress')),
+              columnVisibility.manHours && React.createElement('div', { className: "w-20 flex-shrink-0 p-1 text-xs text-center" },
+                React.createElement('div', { className: "flex flex-col items-center justify-center -space-y-1" },
+                  React.createElement('span', null, t('manHours')),
+                  React.createElement('span', { className: "text-[10px] text-slate-500 font-normal" },
+                    `(${t('total')}: ${totalManHours.toLocaleString(undefined, { maximumFractionDigits: 1 })})`
+                  )
+                )
+              ),
+              React.createElement('div', { className: "w-16 flex-shrink-0 flex items-center justify-end" },
+                 React.createElement('button', {
+                    onClick: onDeleteAllTasks, 
+                    className: "text-gray-400 hover:text-red-500 p-1 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed", 
+                    title: t('deleteAllTasks'),
+                    disabled: tasks.length === 0
+                  }, React.createElement(TrashIcon, null))
+              )
+            )
+          ),
+          React.createElement('div', {
+            className: "sticky top-0 z-10 bg-slate-50 border-b border-gray-200",
+            style: { gridColumn: `2 / span 1` },
+            ref: timelineHeaderRef
+          },
+            React.createElement('div', { className: "grid", style: { gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` } },
+              monthHeaders.map((month, index) => (
+                React.createElement('div', { key: index, className: "text-center font-semibold text-slate-600 text-sm py-1 border-r border-gray-400", style: { gridColumn: `span ${month.days}` } },
+                  month.formatted
+                )
+              ))
+            ),
+            React.createElement('div', { className: "grid", style: { gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` } },
+              dateHeaders.map(({ date, span, isLastDayOfMonth }, index) => {
                 const dayOfWeek = date.toLocaleString(language === 'ja' ? 'ja-JP' : 'en-US', { weekday: 'short', timeZone: 'UTC' });
                 const day = date.getUTCDay();
                 const isHoliday = holidays.has(day);
 
                 let dayColorClass = 'text-slate-500';
-                if (day === 0) { // Sunday
-                  dayColorClass = 'text-red-600';
-                } else if (day === 6) { // Saturday
-                  dayColorClass = 'text-blue-600';
-                }
+                if (day === 0) { dayColorClass = 'text-red-600'; } else if (day === 6) { dayColorClass = 'text-blue-600'; }
                 
                 let borderClass = 'border-gray-200';
-                if (isLastDayOfMonth) {
-                  borderClass = 'border-gray-400';
-                } else if (span > 1) {
-                  borderClass = 'border-gray-300';
-                }
+                if (isLastDayOfMonth) { borderClass = 'border-gray-400'; } else if (span > 1) { borderClass = 'border-gray-300'; }
                 const containerAlignmentClass = span === 1 ? 'justify-center' : 'justify-start pl-1';
                 const textAlignmentClass = span === 1 ? 'items-center' : 'items-start';
 
                 return (
-                  <div 
-                    key={index} 
-                    className={`text-xs border-r ${borderClass} flex ${containerAlignmentClass} items-center h-full ${isHoliday ? 'bg-red-50' : 'bg-slate-50'} ${dayColorClass} overflow-hidden`}
-                    style={{ gridColumn: `span ${span}` }}
-                  >
-                      <div className={`flex flex-col ${textAlignmentClass} justify-center h-full`}>
-                        <span className="whitespace-nowrap leading-none">{date.getUTCDate()}</span>
-                        <span className="text-[10px] leading-none whitespace-nowrap">{dayOfWeek}</span>
-                      </div>
-                  </div>
+                  React.createElement('div', { 
+                    key: index, 
+                    className: `text-xs border-r ${borderClass} flex ${containerAlignmentClass} items-center h-full ${isHoliday ? 'bg-red-50' : 'bg-slate-50'} ${dayColorClass} overflow-hidden`,
+                    style: { gridColumn: `span ${span}` }
+                  },
+                      React.createElement('div', { className: `flex flex-col ${textAlignmentClass} justify-center h-full`},
+                        React.createElement('span', { className: "whitespace-nowrap leading-none" }, date.getUTCDate()),
+                        React.createElement('span', { className: "text-[10px] leading-none whitespace-nowrap" }, dayOfWeek)
+                      )
+                  )
                 );
-              })}
-            </div>
-          </div>
-          
-          {typeof dropIndex === 'number' && reorderState && (
-            <div
-                className="h-0.5 bg-blue-500 pointer-events-none absolute w-full z-40"
-                style={{
+              })
+            )
+          ),
+          (typeof dropIndex === 'number' && reorderState) && React.createElement('div', {
+                className: "h-0.5 bg-blue-500 pointer-events-none absolute w-full z-40",
+                style: {
                     top: (timelineHeaderRef.current?.offsetHeight || 0) + (tasks.findIndex(t => t.id === reorderState.draggedTaskId) < dropIndex ? dropIndex -1 : dropIndex) * rowHeight - 2,
                     left: 0,
-                }}
-            />
-          )}
-
-          {/* Task Rows */}
-          {tasks.map((task, index) => {
+                }
+            }),
+          tasks.map((task, index) => {
             const isDragging = reorderState?.draggedTaskId === task.id;
             
             return (
-            <React.Fragment key={task.id}>
-              {/* Task Details Column Cell */}
-              <div
-                ref={(el) => { taskRowRefs.current[task.id] = el; }}
-                className={`sticky left-0 bg-white border-b border-r border-gray-200 z-20 flex items-center p-2 gap-1 transition-opacity ${isDragging ? 'opacity-50' : ''}`}
-                style={{
+            React.createElement(React.Fragment, { key: task.id },
+              React.createElement('div', {
+                ref: (el) => { taskRowRefs.current[task.id] = el; },
+                className: `sticky left-0 bg-white border-b border-r border-gray-200 z-20 flex items-center p-2 gap-1 transition-opacity ${isDragging ? 'opacity-50' : ''}`,
+                style: {
                   height: `${rowHeight}px`,
                   gridRow: index + 2,
                   gridColumn: 1,
                   zIndex: activeCalendar?.taskId === task.id ? 41 : 20,
-                }}
-              >
-                  <button
-                    onMouseDown={(e) => handleReorderStart(e, task.id)}
-                    className="p-1 text-gray-400 hover:bg-gray-200 rounded-md"
-                    title={t('reorderTask')}
-                  >
-                    <GripVerticalIcon className="w-5 h-5 cursor-grab active:cursor-grabbing"/>
-                  </button>
-                  <input type="text" value={task.name} onChange={e => onTaskChange(task.id, 'name', e.target.value)} onFocus={handleInputFocus} placeholder={t('taskNamePlaceholder')} className="flex-grow min-w-0 p-1 border-none focus:ring-0 text-sm"/>
-                  {columnVisibility.assignee && <div className="w-24 flex-shrink-0">
-                    <input
-                      type="text"
-                      value={task.assignee || ''}
-                      onChange={e => onTaskChange(task.id, 'assignee', e.target.value)}
-                      onFocus={handleInputFocus}
-                      placeholder={t('assignee')}
-                      className="w-full p-1 border-none focus:ring-0 text-xs"
-                    />
-                  </div>}
-                  {columnVisibility.startDate && <div className="relative w-24 flex-shrink-0">
-                      <input type="text" value={task.startDate} onChange={e => onTaskChange(task.id, 'startDate', e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full p-1 border-none focus:ring-0 text-xs pr-6"/>
-                      <button
-                          data-calendar-toggle
-                          onClick={(e) => openCalendar(e, 'taskStartDate', task.id)}
-                          className="absolute inset-y-0 right-0 flex items-center pr-1 text-gray-400 hover:text-indigo-600"
-                          aria-label={t('openCalendar')}
-                      >
-                          <CalendarIcon className="w-4 h-4"/>
-                      </button>
-                       {activeCalendar?.type === 'taskStartDate' && activeCalendar?.taskId === task.id && (
-                          <Calendar
-                              initialDate={task.startDate}
-                              taskStartDate={task.startDate}
-                              taskEndDate={task.endDate}
-                              minDate={projectStart}
-                              maxDate={task.endDate || projectEnd}
-                              onSelectDate={(date) => {
+                }
+              },
+                  React.createElement('button', {
+                    onMouseDown: (e) => handleReorderStart(e, task.id),
+                    className: "p-1 text-gray-400 hover:bg-gray-200 rounded-md",
+                    title: t('reorderTask')
+                  }, React.createElement(GripVerticalIcon, { className: "w-5 h-5 cursor-grab active:cursor-grabbing"})),
+                  React.createElement('input', { type: "text", value: task.name, onChange: e => onTaskChange(task.id, 'name', e.target.value), onFocus: handleInputFocus, placeholder: t('taskNamePlaceholder'), className: "flex-grow min-w-0 p-1 border-none focus:ring-0 text-sm"}),
+                  columnVisibility.assignee && React.createElement('div', { className: "w-24 flex-shrink-0" },
+                    React.createElement('input', {
+                      type: "text",
+                      value: task.assignee || '',
+                      onChange: e => onTaskChange(task.id, 'assignee', e.target.value),
+                      onFocus: handleInputFocus,
+                      placeholder: t('assignee'),
+                      className: "w-full p-1 border-none focus:ring-0 text-xs"
+                    })
+                  ),
+                  columnVisibility.startDate && React.createElement('div', { className: "relative w-24 flex-shrink-0" },
+                      React.createElement('input', { type: "text", value: task.startDate, onChange: e => onTaskChange(task.id, 'startDate', e.target.value), placeholder: t('dateFormatPlaceholder'), className: "w-full p-1 border-none focus:ring-0 text-xs pr-6"}),
+                      React.createElement('button', {
+                          'data-calendar-toggle': true,
+                          onClick: (e) => openCalendar(e, 'taskStartDate', task.id),
+                          className: "absolute inset-y-0 right-0 flex items-center pr-1 text-gray-400 hover:text-indigo-600",
+                          'aria-label': t('openCalendar')
+                      }, React.createElement(CalendarIcon, { className: "w-4 h-4"})),
+                       (activeCalendar?.type === 'taskStartDate' && activeCalendar?.taskId === task.id) && React.createElement(Calendar, {
+                              initialDate: task.startDate,
+                              taskStartDate: task.startDate,
+                              taskEndDate: task.endDate,
+                              minDate: projectStart,
+                              maxDate: task.endDate || projectEnd,
+                              onSelectDate: (date) => {
                                   onTaskChange(task.id, 'startDate', date);
                                   setActiveCalendar(null);
-                              }}
-                              onClose={() => setActiveCalendar(null)}
-                              position={activeCalendar.position}
-                          />
-                      )}
-                  </div>}
-                  {columnVisibility.endDate && <div className="relative w-24 flex-shrink-0">
-                      <input type="text" value={task.endDate} onChange={e => onTaskChange(task.id, 'endDate', e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full p-1 border-none focus:ring-0 text-xs pr-6"/>
-                      <button
-                          data-calendar-toggle
-                          onClick={(e) => openCalendar(e, 'taskEndDate', task.id)}
-                          className="absolute inset-y-0 right-0 flex items-center pr-1 text-gray-400 hover:text-indigo-600"
-                          aria-label={t('openCalendar')}
-                      >
-                          <CalendarIcon className="w-4 h-4"/>
-                      </button>
-                      {activeCalendar?.type === 'taskEndDate' && activeCalendar?.taskId === task.id && (
-                          <Calendar
-                              initialDate={task.endDate}
-                              taskStartDate={task.startDate}
-                              taskEndDate={task.endDate}
-                              minDate={task.startDate || projectStart}
-                              maxDate={projectEnd}
-                              onSelectDate={(date) => {
+                              },
+                              onClose: () => setActiveCalendar(null),
+                              position: activeCalendar.position
+                          })
+                  ),
+                  columnVisibility.endDate && React.createElement('div', { className: "relative w-24 flex-shrink-0" },
+                      React.createElement('input', { type: "text", value: task.endDate, onChange: e => onTaskChange(task.id, 'endDate', e.target.value), placeholder: t('dateFormatPlaceholder'), className: "w-full p-1 border-none focus:ring-0 text-xs pr-6"}),
+                      React.createElement('button', {
+                          'data-calendar-toggle': true,
+                          onClick: (e) => openCalendar(e, 'taskEndDate', task.id),
+                          className: "absolute inset-y-0 right-0 flex items-center pr-1 text-gray-400 hover:text-indigo-600",
+                          'aria-label': t('openCalendar')
+                      }, React.createElement(CalendarIcon, { className: "w-4 h-4"})),
+                      (activeCalendar?.type === 'taskEndDate' && activeCalendar?.taskId === task.id) && React.createElement(Calendar, {
+                              initialDate: task.endDate,
+                              taskStartDate: task.startDate,
+                              taskEndDate: task.endDate,
+                              minDate: task.startDate || projectStart,
+                              maxDate: projectEnd,
+                              onSelectDate: (date) => {
                                   onTaskChange(task.id, 'endDate', date);
                                   setActiveCalendar(null);
-                              }}
-                              onClose={() => setActiveCalendar(null)}
-                              position={activeCalendar.position}
-                          />
-                      )}
-                  </div>}
-                  {columnVisibility.duration && <div className="w-16 flex-shrink-0">
-                    <input
-                      type="number"
-                      value={getTaskDuration(task.startDate, task.endDate) || ''}
-                      onChange={e => onDurationChange(task, e.target.value)}
-                      onFocus={handleInputFocus}
-                      className="w-full p-1 border-none focus:ring-0 text-xs text-center"
-                      placeholder="-"
-                      min="1"
-                    />
-                  </div>}
-                  {columnVisibility.progress && <div className="w-20 flex-shrink-0 relative">
-                    <input
-                      type="number"
-                      value={task.progress}
-                      onChange={e => onProgressChange(task.id, e.target.value)}
-                      onFocus={handleInputFocus}
-                      className="w-full p-1 border-none focus:ring-0 text-xs text-center pr-4"
-                      min="0"
-                      max="100"
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
-                  </div>}
-                  {columnVisibility.manHours && <div className="w-20 flex-shrink-0">
-                    <input
-                      type="number"
-                      value={task.manHours ?? ''}
-                      onChange={e => onManHoursChange(task.id, e.target.value)}
-                      onFocus={handleInputFocus}
-                      className="w-full p-1 border-none focus:ring-0 text-xs text-center"
-                      placeholder="-"
-                      min="0"
-                    />
-                  </div>}
-                  <div className="w-16 flex-shrink-0 flex items-center justify-end">
-                    <button
-                      onClick={() => onDuplicateTask(task.id)}
-                      className="text-gray-400 hover:text-indigo-500 p-1 rounded-full transition-colors"
-                      title={t('duplicateTask')}
-                    >
-                      <DuplicateIcon className="w-5 h-5" />
-                    </button>
-                    <button onClick={() => onDeleteTask(task.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full transition-colors">
-                        <TrashIcon />
-                    </button>
-                  </div>
-              </div>
-
-              {/* Task Timeline Row Cell */}
-              <div
-                className={`relative border-b transition-opacity z-0 ${isDragging ? 'opacity-50' : ''}`}
-                style={{
+                              },
+                              onClose: () => setActiveCalendar(null),
+                              position: activeCalendar.position
+                          })
+                  ),
+                  columnVisibility.duration && React.createElement('div', { className: "w-16 flex-shrink-0" },
+                    React.createElement('input', {
+                      type: "number",
+                      value: getTaskDuration(task.startDate, task.endDate) || '',
+                      onChange: e => onDurationChange(task, e.target.value),
+                      onFocus: handleInputFocus,
+                      className: "w-full p-1 border-none focus:ring-0 text-xs text-center",
+                      placeholder: "-",
+                      min: "1"
+                    })
+                  ),
+                  columnVisibility.progress && React.createElement('div', { className: "w-20 flex-shrink-0 relative" },
+                    React.createElement('input', {
+                      type: "number",
+                      value: task.progress,
+                      onChange: e => onProgressChange(task.id, e.target.value),
+                      onFocus: handleInputFocus,
+                      className: "w-full p-1 border-none focus:ring-0 text-xs text-center pr-4",
+                      min: "0",
+                      max: "100"
+                    }),
+                    React.createElement('span', { className: "absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400" }, "%")
+                  ),
+                  columnVisibility.manHours && React.createElement('div', { className: "w-20 flex-shrink-0" },
+                    React.createElement('input', {
+                      type: "number",
+                      value: task.manHours ?? '',
+                      onChange: e => onManHoursChange(task.id, e.target.value),
+                      onFocus: handleInputFocus,
+                      className: "w-full p-1 border-none focus:ring-0 text-xs text-center",
+                      placeholder: "-",
+                      min: "0"
+                    })
+                  ),
+                  React.createElement('div', { className: "w-16 flex-shrink-0 flex items-center justify-end" },
+                    React.createElement('button', {
+                      onClick: () => onDuplicateTask(task.id),
+                      className: "text-gray-400 hover:text-indigo-500 p-1 rounded-full transition-colors",
+                      title: t('duplicateTask')
+                    }, React.createElement(DuplicateIcon, { className: "w-5 h-5" })),
+                    React.createElement('button', { onClick: () => onDeleteTask(task.id), className: "text-gray-400 hover:text-red-500 p-1 rounded-full transition-colors" },
+                        React.createElement(TrashIcon, null)
+                    )
+                  )
+              ),
+              React.createElement('div', {
+                className: `relative border-b transition-opacity z-0 ${isDragging ? 'opacity-50' : ''}`,
+                style: {
                   gridRow: index + 2,
                   gridColumn: `2 / span 1`,
-                }}
-                data-task-row-id={task.id}
-                onMouseDown={(e) => {
+                },
+                'data-task-row-id': task.id,
+                onMouseDown: (e) => {
                   if (!task.startDate && !task.endDate) {
                     handleMouseDown(e, task.id);
                   }
-                }}
-                onMouseMove={handleMouseMove}
-                onMouseLeave={handleMouseLeave}
-              >
-                  {/* Background Lines & Weekend Highlighting */}
-                  <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` }}>
-                      {dateArray.map((date, index) => {
+                },
+                onMouseMove: handleMouseMove,
+                onMouseLeave: handleMouseLeave
+              },
+                  React.createElement('div', { className: "absolute inset-0 grid", style: { gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` } },
+                      dateArray.map((date, index) => {
                           const isHoliday = holidays.has(date.getUTCDay());
                           const nextDay = addDaysUTC(date, 1);
                           const isLastDayOfMonth = nextDay.getUTCDate() === 1;
@@ -1072,18 +921,17 @@ const GanttChart: React.FC<GanttChartProps> = ({
                           if (dayWidth < 12) interval = 7;
                           const isGroupSeparator = interval > 1 && (index + 1) % interval === 0;
 
-                          let borderClass = 'border-gray-100'; // Lightest, default
+                          let borderClass = 'border-gray-100';
                           if (isLastDayOfMonth) {
-                              borderClass = 'border-gray-400'; // Darkest
+                              borderClass = 'border-gray-400';
                           } else if (isGroupSeparator) {
-                              borderClass = 'border-gray-300'; // Medium
+                              borderClass = 'border-gray-300';
                           }
-                          return <div key={index} className={`h-full border-r ${borderClass} ${isHoliday ? 'bg-red-50' : ''}`}></div>;
-                      })}
-                  </div>
-                  {/* Task Bar */}
-                  <div className="absolute inset-0 grid items-center" style={{ gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` }}>
-                     {(() => {
+                          return React.createElement('div', { key: index, className: `h-full border-r ${borderClass} ${isHoliday ? 'bg-red-50' : ''}` });
+                      })
+                  ),
+                  React.createElement('div', { className: "absolute inset-0 grid items-center", style: { gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` } },
+                     (() => {
                         const taskStart = parseUTCDateString(task.startDate);
                         const taskEnd = parseUTCDateString(task.endDate);
 
@@ -1103,7 +951,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
                         
                         const segments = getTaskSegments(task);
 
-                        const interactionLayerStyle: React.CSSProperties = { color: textColor };
+                        const interactionLayerStyle = { color: textColor };
                         if (segments.length > 0 && totalDurationDays > 0) {
                             const visualStartDate = segments[0].startDate;
                             const visualEndDate = segments[segments.length - 1].endDate;
@@ -1122,13 +970,12 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
 
                         return (
-                            <div
-                                className="relative h-8"
-                                style={{ ...getGridPosition(taskStart, taskEnd) }}
-                            >
-                                {/* Background Visual Bars Container */}
-                                <div className="absolute inset-0">
-                                    {segments.map((segment, segIndex) => {
+                            React.createElement('div', {
+                                className: "relative h-8",
+                                style: { ...getGridPosition(taskStart, taskEnd) }
+                            },
+                                React.createElement('div', { className: "absolute inset-0" },
+                                    segments.map((segment, segIndex) => {
                                         const segmentWorkingDays = calculateWorkingDays(segment.startDate, segment.endDate, holidays);
                                         if (segmentWorkingDays === 0) return null;
 
@@ -1143,76 +990,68 @@ const GanttChart: React.FC<GanttChartProps> = ({
                                         const width = (segmentDurationDays / totalDurationDays) * 100;
                                         
                                         return (
-                                            <div
-                                                key={`segment-${segIndex}`}
-                                                className="absolute top-0 h-full"
-                                                style={{ left: `${left}%`, width: `${width}%` }}
-                                            >
-                                                <div className="w-full h-full relative" style={{ backgroundColor: baseColor }}>
-                                                    <div
-                                                        className="absolute top-0 left-0 h-full pointer-events-none"
-                                                        style={{ 
+                                            React.createElement('div', {
+                                                key: `segment-${segIndex}`,
+                                                className: "absolute top-0 h-full",
+                                                style: { left: `${left}%`, width: `${width}%` }
+                                            },
+                                                React.createElement('div', { className: "w-full h-full relative", style: { backgroundColor: baseColor } },
+                                                    React.createElement('div', {
+                                                        className: "absolute top-0 left-0 h-full pointer-events-none",
+                                                        style: { 
                                                             width: `${progressWidthPercent}%`, 
                                                             backgroundColor: progressColor,
                                                             backgroundImage: lightningDataUrl,
                                                             backgroundSize: '16px',
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
+                                                        }
+                                                    })
+                                                )
+                                            )
                                         );
-                                    })}
-                                </div>
-
-                                {/* Foreground Interaction & Text Layer */}
-                                <div
-                                    className="group/bar cursor-move px-3 text-sm font-medium flex items-center"
-                                    style={interactionLayerStyle}
-                                    onMouseDown={(e) => handleDragStart(e, task, 'move')}
-                                >
-                                    <span className="whitespace-nowrap">{task.name}</span>
-                                    <div
-                                        className="absolute left-0 top-0 h-full w-2 cursor-ew-resize"
-                                        onMouseDown={(e) => handleDragStart(e, task, 'resize-start')}
-                                    />
-                                    <div
-                                        className="absolute right-0 top-0 h-full w-2 cursor-ew-resize"
-                                        onMouseDown={(e) => handleDragStart(e, task, 'resize-end')}
-                                    />
-                                </div>
-                            </div>
+                                    })
+                                ),
+                                React.createElement('div', {
+                                    className: "group/bar cursor-move px-3 text-sm font-medium flex items-center",
+                                    style: interactionLayerStyle,
+                                    onMouseDown: (e) => handleDragStart(e, task, 'move')
+                                },
+                                    React.createElement('span', { className: "whitespace-nowrap" }, task.name),
+                                    React.createElement('div', {
+                                        className: "absolute left-0 top-0 h-full w-2 cursor-ew-resize",
+                                        onMouseDown: (e) => handleDragStart(e, task, 'resize-start')
+                                    }),
+                                    React.createElement('div', {
+                                        className: "absolute right-0 top-0 h-full w-2 cursor-ew-resize",
+                                        onMouseDown: (e) => handleDragStart(e, task, 'resize-end')
+                                    })
+                                )
+                            )
                         );
-                     })()}
-                     {dragPreview && dragPreview.taskId === task.id && (
-                        <div
-                          className="h-8 bg-indigo-300 opacity-70"
-                          style={getGridPosition(
-                              parseUTCDateString(dragPreview.start > dragPreview.end ? dragPreview.end : dragPreview.start)!,
-                              parseUTCDateString(dragPreview.start > dragPreview.end ? dragPreview.start : dragPreview.end)!,
-                          )}
-                        />
-                     )}
-                  </div>
-              </div>
-            </React.Fragment>
-          )})}
-          {progressLinePath && (
-            <div className="absolute top-0 left-0 pointer-events-none z-35" style={{ height: totalContentHeight, width: totalGridWidth ? `${totalGridWidth}px` : '100%' }}>
-              <svg width={totalGridWidth || '100%'} height="100%">
-                  <path d={progressLinePath} stroke={progressLineColor} strokeWidth="2" fill="none" strokeDasharray="4 4" />
-              </svg>
-            </div>
-          )}
-        </div>
-      </div>
-      <button
-        onClick={onAddTask}
-        title={t('addTask')}
-        className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all transform hover:scale-110"
-      >
-        <PlusIcon className="w-7 h-7" />
-      </button>
-    </div>
+                     })(),
+                     dragPreview && dragPreview.taskId === task.id && React.createElement('div', {
+                          className: "h-8 bg-indigo-300 opacity-70",
+                          style: getGridPosition(
+                              parseUTCDateString(dragPreview.start > dragPreview.end ? dragPreview.end : dragPreview.start),
+                              parseUTCDateString(dragPreview.start > dragPreview.end ? dragPreview.start : dragPreview.end),
+                          )
+                        })
+                  )
+              )
+            )
+          )}),
+          progressLinePath && React.createElement('div', { className: "absolute top-0 left-0 pointer-events-none z-35", style: { height: totalContentHeight, width: totalGridWidth ? `${totalGridWidth}px` : '100%' } },
+              React.createElement('svg', { width: totalGridWidth || '100%', height: "100%" },
+                  React.createElement('path', { d: progressLinePath, stroke: progressLineColor, strokeWidth: "2", fill: "none", strokeDasharray: "4 4" })
+              )
+            )
+        )
+      ),
+      React.createElement('button', {
+        onClick: onAddTask,
+        title: t('addTask'),
+        className: "fixed bottom-8 right-8 z-50 w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all transform hover:scale-110"
+      }, React.createElement(PlusIcon, { className: "w-7 h-7" }))
+    )
   );
 };
 

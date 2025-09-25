@@ -95,42 +95,10 @@ const App: React.FC = () => {
 
   const [tasks, setTasks] = useState<Task[]>(() => {
     const initialT = (key: TranslationKey) => translations[key]['ja']; // Default to Japanese for initial state
-    const now = new Date();
-    const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    
-    const task1Start = todayUTC;
-    const task1End = addDaysUTC(task1Start, 4); // 5 days
-    
-    const task2Start = addDaysUTC(task1End, 1);
-    const task2End = addDaysUTC(task2Start, 9); // 10 days
-    
-    const task3Start = addDaysUTC(task2End, 1);
-    const task3End = addDaysUTC(task3Start, 19); // 20 days
-    
-    const task4Start = addDaysUTC(task3Start, 5); // Parallel
-    const task4End = addDaysUTC(task4Start, 14); // 15 days
-    
-    const task5Start = addDaysUTC(task3Start, 7); // Parallel
-    const task5End = addDaysUTC(task5Start, 17); // 18 days
-
-    const task6Start = addDaysUTC(task4End, -3); // Overlap
-    const task6End = addDaysUTC(task6Start, 19); // 20 days
-
-    const task7Start = addDaysUTC(task4End, 1); 
-    const task7End = addDaysUTC(task7Start, 9); // 10 days
-
-    const task8Start = addDaysUTC(task6End, 1);
-    const task8End = addDaysUTC(task8Start, 4); // 5 days
-
     return [
-        { id: '1', name: initialT('temporaryWorks'), assignee: '', startDate: formatDateUTC(task1Start), endDate: formatDateUTC(task1End), progress: 0, manHours: 20 },
-        { id: '2', name: initialT('earthworks'), assignee: '', startDate: formatDateUTC(task2Start), endDate: formatDateUTC(task2End), progress: 0, manHours: 80 },
-        { id: '3', name: initialT('structuralWork'), assignee: '', startDate: formatDateUTC(task3Start), endDate: formatDateUTC(task3End), progress: 0, manHours: 200 },
-        { id: '4', name: initialT('exteriorWork'), assignee: '', startDate: formatDateUTC(task4Start), endDate: formatDateUTC(task4End), progress: 0, manHours: 150 },
-        { id: '5', name: initialT('mepWorks'), assignee: '', startDate: formatDateUTC(task5Start), endDate: formatDateUTC(task5End), progress: 0, manHours: 180 },
-        { id: '6', name: initialT('interiorWork'), assignee: '', startDate: formatDateUTC(task6Start), endDate: formatDateUTC(task6End), progress: 0, manHours: 200 },
-        { id: '7', name: initialT('landscaping'), assignee: '', startDate: formatDateUTC(task7Start), endDate: formatDateUTC(task7End), progress: 0, manHours: 50 },
-        { id: '8', name: initialT('completionHandover'), assignee: '', startDate: formatDateUTC(task8Start), endDate: formatDateUTC(task8End), progress: 0, manHours: 10 },
+      { id: '1', name: `${initialT('newTaskName')} 1`, assignee: '', startDate: '', endDate: '', progress: 0, manHours: 0 },
+      { id: '2', name: `${initialT('newTaskName')} 2`, assignee: '', startDate: '', endDate: '', progress: 0, manHours: 0 },
+      { id: '3', name: `${initialT('newTaskName')} 3`, assignee: '', startDate: '', endDate: '', progress: 0, manHours: 0 },
     ];
   });
 

@@ -10,9 +10,9 @@ if (!rootElement) {
 
 const root = ReactDOM.createRoot(rootElement);
 root.render(
-  <React.StrictMode>
-    <LanguageProvider>
-      <App />
-    </LanguageProvider>
-  </React.StrictMode>
+  React.createElement(React.StrictMode, null,
+    React.createElement(LanguageProvider, null,
+      React.createElement(App, null)
+    )
+  )
 );

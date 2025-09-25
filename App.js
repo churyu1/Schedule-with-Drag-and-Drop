@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import GanttChart from './components/GanttChart.js';
 import { useLanguage } from './contexts/LanguageContext.js';
-import { translations, TranslationKey } from './lib/translations.js';
+import { translations } from './lib/translations.js';
 import SettingsIcon from './components/icons/SettingsIcon.js';
 import ZoomInIcon from './components/icons/ZoomInIcon.js';
 import ZoomOutIcon from './components/icons/ZoomOutIcon.js';
@@ -9,7 +9,6 @@ import ProgressLineIcon from './components/icons/ProgressLineIcon.js';
 import XIcon from './components/icons/XIcon.js';
 import SettingsModal from './components/SettingsModal.js';
 import Calendar from './components/Calendar.js';
-import { Task } from './types.js';
 import DownloadIcon from './components/icons/DownloadIcon.js';
 import UploadIcon from './components/icons/UploadIcon.js';
 import {
@@ -45,26 +44,21 @@ const INITIAL_COLORS = {
 };
 
 
-const App: React.FC = () => {
+const App = () => {
   const { language, setLanguage } = useLanguage();
-  const t = useCallback((key: TranslationKey) => {
+  const t = useCallback((key) => {
     return translations[key][language];
   }, [language]);
 
   // Global app state
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [confirmModalState, setConfirmModalState] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-  }>({
+  const [confirmModalState, setConfirmModalState] = useState({
     isOpen: false,
     title: '',
     message: '',
     onConfirm: () => {},
   });
-  const [holidays, setHolidays] = useState<Set<number>>(() => new Set([0, 6]));
+  const [holidays, setHolidays] = useState(() => new Set([0, 6]));
   const [columnVisibility, setColumnVisibility] = useState({
     assignee: true,
     startDate: false,
@@ -74,63 +68,31 @@ const App: React.FC = () => {
     manHours: false,
   });
   const [zoomIndex, setZoomIndex] = useState(3);
-  const [progressLineDate, setProgressLineDate] = useState<string | null>(null);
+  const [progressLineDate, setProgressLineDate] = useState(null);
   const [isProgressLineCalendarOpen, setIsProgressLineCalendarOpen] = useState(false);
-  const importFileRef = useRef<HTMLInputElement>(null);
-  const [rowHeight, setRowHeight] = useState<number>(40);
+  const importFileRef = useRef(null);
+  const [rowHeight, setRowHeight] = useState(40);
 
 
   // State lifted up from GanttChart
-  const [projectName, setProjectName] = useState<string>(() => translations.untitledProject.ja);
-  const [projectStart, setProjectStart] = useState<string>(getInitialStartDate());
-  const [projectEnd, setProjectEnd] = useState<string>(getInitialEndDate());
-  const [creationDate, setCreationDate] = useState<string>(getInitialStartDate());
-  const [creatorName, setCreatorName] = useState<string>('');
+  const [projectName, setProjectName] = useState(() => translations.untitledProject.ja);
+  const [projectStart, setProjectStart] = useState(getInitialStartDate());
+  const [projectEnd, setProjectEnd] = useState(getInitialEndDate());
+  const [creationDate, setCreationDate] = useState(getInitialStartDate());
+  const [creatorName, setCreatorName] = useState('');
   
   // Color settings
-  const [baseColor, setBaseColor] = useState<string>(INITIAL_COLORS.base);
-  const [progressColor, setProgressColor] = useState<string>(INITIAL_COLORS.progress);
-  const [textColor, setTextColor] = useState<string>(INITIAL_COLORS.text);
-  const [progressLineColor, setProgressLineColor] = useState<string>(INITIAL_COLORS.progressLine);
+  const [baseColor, setBaseColor] = useState(INITIAL_COLORS.base);
+  const [progressColor, setProgressColor] = useState(INITIAL_COLORS.progress);
+  const [textColor, setTextColor] = useState(INITIAL_COLORS.text);
+  const [progressLineColor, setProgressLineColor] = useState(INITIAL_COLORS.progressLine);
 
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const initialT = (key: TranslationKey) => translations[key]['ja']; // Default to Japanese for initial state
-    const now = new Date();
-    const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    
-    const task1Start = todayUTC;
-    const task1End = addDaysUTC(task1Start, 4); // 5 days
-    
-    const task2Start = addDaysUTC(task1End, 1);
-    const task2End = addDaysUTC(task2Start, 9); // 10 days
-    
-    const task3Start = addDaysUTC(task2End, 1);
-    const task3End = addDaysUTC(task3Start, 19); // 20 days
-    
-    const task4Start = addDaysUTC(task3Start, 5); // Parallel
-    const task4End = addDaysUTC(task4Start, 14); // 15 days
-    
-    const task5Start = addDaysUTC(task3Start, 7); // Parallel
-    const task5End = addDaysUTC(task5Start, 17); // 18 days
-
-    const task6Start = addDaysUTC(task4End, -3); // Overlap
-    const task6End = addDaysUTC(task6Start, 19); // 20 days
-
-    const task7Start = addDaysUTC(task4End, 1); 
-    const task7End = addDaysUTC(task7Start, 9); // 10 days
-
-    const task8Start = addDaysUTC(task6End, 1);
-    const task8End = addDaysUTC(task8Start, 4); // 5 days
-
+  const [tasks, setTasks] = useState(() => {
+    const initialT = (key) => translations[key]['ja']; // Default to Japanese for initial state
     return [
-        { id: '1', name: initialT('temporaryWorks'), assignee: '', startDate: formatDateUTC(task1Start), endDate: formatDateUTC(task1End), progress: 0, manHours: 20 },
-        { id: '2', name: initialT('earthworks'), assignee: '', startDate: formatDateUTC(task2Start), endDate: formatDateUTC(task2End), progress: 0, manHours: 80 },
-        { id: '3', name: initialT('structuralWork'), assignee: '', startDate: formatDateUTC(task3Start), endDate: formatDateUTC(task3End), progress: 0, manHours: 200 },
-        { id: '4', name: initialT('exteriorWork'), assignee: '', startDate: formatDateUTC(task4Start), endDate: formatDateUTC(task4End), progress: 0, manHours: 150 },
-        { id: '5', name: initialT('mepWorks'), assignee: '', startDate: formatDateUTC(task5Start), endDate: formatDateUTC(task5End), progress: 0, manHours: 180 },
-        { id: '6', name: initialT('interiorWork'), assignee: '', startDate: formatDateUTC(task6Start), endDate: formatDateUTC(task6End), progress: 0, manHours: 200 },
-        { id: '7', name: initialT('landscaping'), assignee: '', startDate: formatDateUTC(task7Start), endDate: formatDateUTC(task7End), progress: 0, manHours: 50 },
-        { id: '8', name: initialT('completionHandover'), assignee: '', startDate: formatDateUTC(task8Start), endDate: formatDateUTC(task8End), progress: 0, manHours: 10 },
+      { id: '1', name: `${initialT('newTaskName')} 1`, assignee: '', startDate: '', endDate: '', progress: 0, manHours: 0 },
+      { id: '2', name: `${initialT('newTaskName')} 2`, assignee: '', startDate: '', endDate: '', progress: 0, manHours: 0 },
+      { id: '3', name: `${initialT('newTaskName')} 3`, assignee: '', startDate: '', endDate: '', progress: 0, manHours: 0 },
     ];
   });
 
@@ -168,18 +130,18 @@ const App: React.FC = () => {
     setTasks(prev => [...prev, { id: newId, name: `${t('newTaskName')} ${prev.length + 1}`, assignee: '', startDate: '', endDate: '', progress: 0, manHours: 0 }]);
   };
 
-  const handleDeleteTask = (id: string) => {
+  const handleDeleteTask = (id) => {
     setTasks(prev => prev.filter(task => task.id !== id));
   };
 
-  const handleDuplicateTask = (taskId: string) => {
+  const handleDuplicateTask = (taskId) => {
     setTasks(currentTasks => {
       const taskIndex = currentTasks.findIndex(t => t.id === taskId);
       if (taskIndex === -1) {
         return currentTasks;
       }
       const originalTask = currentTasks[taskIndex];
-      const newTask: Task = {
+      const newTask = {
         ...originalTask,
         id: Date.now().toString(),
         name: `${originalTask.name}${t('copySuffix')}`,
@@ -190,11 +152,11 @@ const App: React.FC = () => {
     });
   };
 
-  const handleTaskChange = (id: string, field: keyof Task, value: string | number | undefined) => {
+  const handleTaskChange = (id, field, value) => {
     setTasks(prev => prev.map(task => task.id === id ? { ...task, [field]: value } : task));
   };
 
-  const handleDurationChange = (task: Task, newDurationStr: string) => {
+  const handleDurationChange = (task, newDurationStr) => {
     const newDuration = parseInt(newDurationStr, 10);
     if (isNaN(newDuration) || newDuration < 1) return;
 
@@ -205,7 +167,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleProgressChange = (taskId: string, newProgressStr: string) => {
+  const handleProgressChange = (taskId, newProgressStr) => {
     let newProgress = parseInt(newProgressStr, 10);
     if (isNaN(newProgress)) {
         newProgress = 0;
@@ -214,7 +176,7 @@ const App: React.FC = () => {
     handleTaskChange(taskId, 'progress', clampedProgress);
   };
 
-  const handleManHoursChange = (taskId: string, newManHoursStr: string) => {
+  const handleManHoursChange = (taskId, newManHoursStr) => {
     let newManHours = parseFloat(newManHoursStr);
     if (isNaN(newManHours)) {
       handleTaskChange(taskId, 'manHours', undefined);
@@ -224,7 +186,7 @@ const App: React.FC = () => {
     handleTaskChange(taskId, 'manHours', clampedManHours);
   };
 
-  const handleTaskDateSet = (taskId: string, startDateStr: string, endDateStr: string) => {
+  const handleTaskDateSet = (taskId, startDateStr, endDateStr) => {
       const d1 = parseUTCDateString(startDateStr);
       const d2 = parseUTCDateString(endDateStr);
       if (d1 && d2) {
@@ -240,11 +202,11 @@ const App: React.FC = () => {
   };
 
   const handleTaskDragUpdate = (
-    taskId: string,
-    actionType: 'move' | 'resize-start' | 'resize-end',
-    initialStartDate: Date,
-    initialEndDate: Date,
-    dayOffset: number
+    taskId,
+    actionType,
+    initialStartDate,
+    initialEndDate,
+    dayOffset
   ) => {
       const pStart = parseUTCDateString(projectStart);
       const pEnd = parseUTCDateString(projectEnd);
@@ -253,8 +215,8 @@ const App: React.FC = () => {
       setTasks(currentTasks =>
         currentTasks.map(task => {
           if (task.id === taskId) {
-            let newStartDate: Date;
-            let newEndDate: Date;
+            let newStartDate;
+            let newEndDate;
 
             switch (actionType) {
               case 'move': {
@@ -301,7 +263,7 @@ const App: React.FC = () => {
       );
   };
 
-  const handleTaskReorder = (draggedTaskId: string, dropIndex: number) => {
+  const handleTaskReorder = (draggedTaskId, dropIndex) => {
       setTasks(currentTasks => {
           const newTasks = [...currentTasks];
           const draggedTask = newTasks.find(t => t.id === draggedTaskId);
@@ -321,8 +283,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isProgressLineCalendarOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-        if (!(event.target as HTMLElement).closest('[data-calendar-popover]') && !(event.target as HTMLElement).closest('[data-calendar-toggle]')) {
+    const handleClickOutside = (event) => {
+        if (!event.target.closest('[data-calendar-popover]') && !event.target.closest('[data-calendar-toggle]')) {
              setIsProgressLineCalendarOpen(false);
         }
     };
@@ -373,7 +335,7 @@ const App: React.FC = () => {
       importFileRef.current?.click();
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event) => {
       const file = event.target.files?.[0];
       if (!file) return;
 
@@ -431,161 +393,138 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-800 font-sans">
-      {isSettingsModalOpen && (
-        <SettingsModal
-          onClose={() => setIsSettingsModalOpen(false)}
-          holidays={holidays}
-          setHolidays={setHolidays}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-          baseColor={baseColor}
-          setBaseColor={setBaseColor}
-          progressColor={progressColor}
-          setProgressColor={setProgressColor}
-          textColor={textColor}
-          setTextColor={setTextColor}
-          progressLineColor={progressLineColor}
-          setProgressLineColor={setProgressLineColor}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          onResetColors={handleResetColors}
-        />
-      )}
-      {confirmModalState.isOpen && (
-        <ConfirmModal
-          title={confirmModalState.title}
-          message={confirmModalState.message}
-          onConfirm={confirmModalState.onConfirm}
-          onClose={() => setConfirmModalState({ isOpen: false, title: '', message: '', onConfirm: () => {} })}
-          confirmText={t('delete')}
-          cancelText={t('cancel')}
-        />
-      )}
-      <header className="bg-white shadow-md sticky top-0 z-40">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-700 tracking-tight">
-              {t('ganttChartMaker')}
-            </h1>
-            <p className="text-slate-500 mt-1">{t('appDescription')}</p>
-          </div>
-          
-          <div className="flex items-center space-x-2 sm:space-x-4">
-            <div className="flex items-center justify-end space-x-2 p-1 sm:p-2 rounded-lg bg-slate-100 border border-slate-200">
-                <button
-                    onClick={() => setIsSettingsModalOpen(true)}
-                    className="p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
-                    title={t('settings')}
-                >
-                    <SettingsIcon className="w-5 h-5" />
-                </button>
-                <div className="h-6 border-l border-gray-300"></div>
-                <div className="relative">
-                    <button
-                        data-calendar-toggle
-                        onClick={() => setIsProgressLineCalendarOpen(prev => !prev)}
-                        className="p-2 rounded-full text-gray-500 hover:bg-gray-200 transition-colors"
-                        title={t('progressLine')}
-                    >
-                        <ProgressLineIcon className="w-5 h-5" />
-                    </button>
-                    {isProgressLineCalendarOpen && (
-                         <Calendar
-                            initialDate={progressLineDate || undefined}
-                            onSelectDate={(date) => {
-                                setProgressLineDate(date);
-                                setIsProgressLineCalendarOpen(false);
-                            }}
-                            onClose={() => setIsProgressLineCalendarOpen(false)}
-                            minDate={projectStart}
-                            maxDate={projectEnd}
-                        />
-                    )}
-                </div>
-                {progressLineDate && (
-                    <button 
-                        onClick={() => setProgressLineDate(null)}
-                        className="p-1 rounded-full text-red-500 bg-red-100 hover:bg-red-200 transition-colors"
-                        title={t('clearProgressLine')}
-                    >
-                        <XIcon className="w-4 h-4" />
-                    </button>
-                )}
-                <div className="h-6 border-l border-gray-300"></div>
-                <button
-                    onClick={handleZoomOut}
-                    disabled={zoomIndex === 0}
-                    className="p-2 rounded-full text-gray-500 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title={t('zoomOut')}
-                >
-                    <ZoomOutIcon className="w-5 h-5" />
-                </button>
-                <button
-                    onClick={handleZoomIn}
-                    disabled={zoomIndex === ZOOM_LEVELS.length - 1}
-                    className="p-2 rounded-full text-gray-500 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title={t('zoomIn')}
-                >
-                    <ZoomInIcon className="w-5 h-5" />
-                </button>
-            </div>
-            <div className="flex items-center justify-end space-x-2 p-1 sm:p-2 rounded-lg bg-slate-100 border border-slate-200">
-                <button onClick={handleImportClick} className="p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors" title={t('importData')}>
-                    <UploadIcon className="w-5 h-5" />
-                </button>
-                <input type="file" ref={importFileRef} onChange={handleFileChange} accept=".json, .gantt.json" className="hidden" />
-                <div className="h-6 border-l border-gray-300"></div>
-                <button onClick={handleExport} className="p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors" title={t('exportData')}>
-                    <DownloadIcon className="w-5 h-5" />
-                </button>
-            </div>
-            <button
-              onClick={toggleLanguage}
-              className="px-4 py-2 border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-              aria-label={`Switch to ${language === 'ja' ? 'English' : '日本語'}`}
-            >
-              {language === 'ja' ? 'English' : '日本語'}
-            </button>
-          </div>
-        </div>
-      </header>
-      <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-        <GanttChart 
-          projectName={projectName}
-          setProjectName={setProjectName}
-          projectStart={projectStart}
-          setProjectStart={setProjectStart}
-          projectEnd={projectEnd}
-          setProjectEnd={setProjectEnd}
-          creationDate={creationDate}
-          setCreationDate={setCreationDate}
-          creatorName={creatorName}
-          setCreatorName={setCreatorName}
-          tasks={tasks}
-          holidays={holidays}
-          columnVisibility={columnVisibility}
-          zoomIndex={zoomIndex}
-          progressLineDate={progressLineDate}
-          baseColor={baseColor}
-          progressColor={progressColor}
-          textColor={textColor}
-          progressLineColor={progressLineColor}
-          rowHeight={rowHeight}
-          onDeleteAllTasks={handleDeleteAllTasks}
-          onAddTask={handleAddTask}
-          onDeleteTask={handleDeleteTask}
-          onDuplicateTask={handleDuplicateTask}
-          onTaskChange={handleTaskChange}
-          onDurationChange={handleDurationChange}
-          onProgressChange={handleProgressChange}
-          onManHoursChange={handleManHoursChange}
-          onTaskDateSet={handleTaskDateSet}
-          onTaskDragUpdate={handleTaskDragUpdate}
-          onTaskReorder={handleTaskReorder}
-        />
-      </main>
-    </div>
+    React.createElement('div', { className: "min-h-screen bg-gray-100 text-gray-800 font-sans" },
+      isSettingsModalOpen && React.createElement(SettingsModal, {
+        onClose: () => setIsSettingsModalOpen(false),
+        holidays: holidays,
+        setHolidays: setHolidays,
+        columnVisibility: columnVisibility,
+        setColumnVisibility: setColumnVisibility,
+        baseColor: baseColor,
+        setBaseColor: setBaseColor,
+        progressColor: progressColor,
+        setProgressColor: setProgressColor,
+        textColor: textColor,
+        setTextColor: setTextColor,
+        progressLineColor: progressLineColor,
+        setProgressLineColor: setProgressLineColor,
+        rowHeight: rowHeight,
+        setRowHeight: setRowHeight,
+        onResetColors: handleResetColors,
+      }),
+      confirmModalState.isOpen && React.createElement(ConfirmModal, {
+        title: confirmModalState.title,
+        message: confirmModalState.message,
+        onConfirm: confirmModalState.onConfirm,
+        onClose: () => setConfirmModalState({ isOpen: false, title: '', message: '', onConfirm: () => {} }),
+        confirmText: t('delete'),
+        cancelText: t('cancel'),
+      }),
+      React.createElement('header', { className: "bg-white shadow-md sticky top-0 z-40" },
+        React.createElement('div', { className: "container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center" },
+          React.createElement('div', null,
+            React.createElement('h1', { className: "text-2xl font-bold text-slate-700 tracking-tight" }, t('ganttChartMaker')),
+            React.createElement('p', { className: "text-slate-500 mt-1" }, t('appDescription'))
+          ),
+          React.createElement('div', { className: "flex items-center space-x-2 sm:space-x-4" },
+            React.createElement('div', { className: "flex items-center justify-end space-x-2 p-1 sm:p-2 rounded-lg bg-slate-100 border border-slate-200" },
+              React.createElement('button', {
+                onClick: () => setIsSettingsModalOpen(true),
+                className: "p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors",
+                title: t('settings'),
+              }, React.createElement(SettingsIcon, { className: "w-5 h-5" })),
+              React.createElement('div', { className: "h-6 border-l border-gray-300" }),
+              React.createElement('div', { className: "relative" },
+                React.createElement('button', {
+                  'data-calendar-toggle': true,
+                  onClick: () => setIsProgressLineCalendarOpen(prev => !prev),
+                  className: "p-2 rounded-full text-gray-500 hover:bg-gray-200 transition-colors",
+                  title: t('progressLine'),
+                }, React.createElement(ProgressLineIcon, { className: "w-5 h-5" })),
+                isProgressLineCalendarOpen && React.createElement(Calendar, {
+                  initialDate: progressLineDate || undefined,
+                  onSelectDate: (date) => {
+                    setProgressLineDate(date);
+                    setIsProgressLineCalendarOpen(false);
+                  },
+                  onClose: () => setIsProgressLineCalendarOpen(false),
+                  minDate: projectStart,
+                  maxDate: projectEnd,
+                })
+              ),
+              progressLineDate && React.createElement('button', {
+                onClick: () => setProgressLineDate(null),
+                className: "p-1 rounded-full text-red-500 bg-red-100 hover:bg-red-200 transition-colors",
+                title: t('clearProgressLine'),
+              }, React.createElement(XIcon, { className: "w-4 h-4" })),
+              React.createElement('div', { className: "h-6 border-l border-gray-300" }),
+              React.createElement('button', {
+                onClick: handleZoomOut,
+                disabled: zoomIndex === 0,
+                className: "p-2 rounded-full text-gray-500 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors",
+                title: t('zoomOut'),
+              }, React.createElement(ZoomOutIcon, { className: "w-5 h-5" })),
+              React.createElement('button', {
+                onClick: handleZoomIn,
+                disabled: zoomIndex === ZOOM_LEVELS.length - 1,
+                className: "p-2 rounded-full text-gray-500 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors",
+                title: t('zoomIn'),
+              }, React.createElement(ZoomInIcon, { className: "w-5 h-5" }))
+            ),
+            React.createElement('div', { className: "flex items-center justify-end space-x-2 p-1 sm:p-2 rounded-lg bg-slate-100 border border-slate-200" },
+              React.createElement('button', { onClick: handleImportClick, className: "p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors", title: t('importData') },
+                React.createElement(UploadIcon, { className: "w-5 h-5" })
+              ),
+              React.createElement('input', { type: "file", ref: importFileRef, onChange: handleFileChange, accept: ".json, .gantt.json", className: "hidden" }),
+              React.createElement('div', { className: "h-6 border-l border-gray-300" }),
+              React.createElement('button', { onClick: handleExport, className: "p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors", title: t('exportData') },
+                React.createElement(DownloadIcon, { className: "w-5 h-5" })
+              )
+            ),
+            React.createElement('button', {
+              onClick: toggleLanguage,
+              className: "px-4 py-2 border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors",
+              'aria-label': `Switch to ${language === 'ja' ? 'English' : '日本語'}`,
+            }, language === 'ja' ? 'English' : '日本語')
+          )
+        )
+      ),
+      React.createElement('main', { className: "container mx-auto p-4 sm:p-6 lg:p-8" },
+        React.createElement(GanttChart, {
+          projectName: projectName,
+          setProjectName: setProjectName,
+          projectStart: projectStart,
+          setProjectStart: setProjectStart,
+          projectEnd: projectEnd,
+          setProjectEnd: setProjectEnd,
+          creationDate: creationDate,
+          setCreationDate: setCreationDate,
+          creatorName: creatorName,
+          setCreatorName: setCreatorName,
+          tasks: tasks,
+          holidays: holidays,
+          columnVisibility: columnVisibility,
+          zoomIndex: zoomIndex,
+          progressLineDate: progressLineDate,
+          baseColor: baseColor,
+          progressColor: progressColor,
+          textColor: textColor,
+          progressLineColor: progressLineColor,
+          rowHeight: rowHeight,
+          onDeleteAllTasks: handleDeleteAllTasks,
+          onAddTask: handleAddTask,
+          onDeleteTask: handleDeleteTask,
+          onDuplicateTask: handleDuplicateTask,
+          onTaskChange: handleTaskChange,
+          onDurationChange: handleDurationChange,
+          onProgressChange: handleProgressChange,
+          onManHoursChange: handleManHoursChange,
+          onTaskDateSet: handleTaskDateSet,
+          onTaskDragUpdate: handleTaskDragUpdate,
+          onTaskReorder: handleTaskReorder,
+        })
+      )
+    )
   );
 };
 
