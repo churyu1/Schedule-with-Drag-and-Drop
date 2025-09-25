@@ -5,19 +5,1015 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ドラッグして工程表</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script type="importmap">
 {
   "imports": {
     "react": "https://aistudiocdn.com/react@^19.1.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/"
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/"
   }
 }
 </script>
 </head>
   <body class="bg-slate-50">
     <div id="root"></div>
-    <script type="text/babel" data-presets="react,typescript" data-type="module" src="./index.tsx"></script>
+    <script type="text/babel">
+      // --- from types.ts ---
+      // No imports/exports needed here. Interface is available globally in this script.
+
+      // --- from lib/dateUtils.ts ---
+      const parseUTCDateString = (dateStr) => {
+          if (!/^\d{4}\/\d{2}\/\d{2}$/.test(dateStr)) return null;
+          const parts = dateStr.split('/').map(p => parseInt(p, 10));
+          const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+          if (date.getUTCFullYear() !== parts[0] || date.getUTCMonth() !== parts[1] - 1 || date.getUTCDate() !== parts[2]) {
+              return null;
+          }
+          return date;
+      };
+      const formatDateUTC = (date) => {
+        const year = date.getUTCFullYear();
+        const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+        const day = date.getUTCDate().toString().padStart(2, '0');
+        return `${year}/${month}/${day}`;
+      };
+      const addDaysUTC = (date, days) => {
+          const result = new Date(date.getTime());
+          result.setUTCDate(result.getUTCDate() + days);
+          return result;
+      };
+      const getDatesInRange = (startDate, endDate) => {
+        const dates = [];
+        const currentDate = new Date(startDate.getTime());
+        while (currentDate.getTime() <= endDate.getTime()) {
+          dates.push(new Date(currentDate.getTime()));
+          currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+        }
+        return dates;
+      };
+      const calculateWorkingDays = (startDate, endDate, nonWorkingDays) => {
+          if (endDate < startDate) return 0;
+          let count = 0;
+          const current = new Date(startDate.getTime());
+          while (current.getTime() <= endDate.getTime()) {
+            if (!nonWorkingDays.has(current.getUTCDay())) {
+              count++;
+            }
+            current.setUTCDate(current.getUTCDate() + 1);
+          }
+          return count;
+      };
+      const addWorkingDays = (startDate, days, nonWorkingDays) => {
+          if (days === 0) {
+              let tempDate = new Date(startDate.getTime());
+              while(nonWorkingDays.has(tempDate.getUTCDay())) {
+                   tempDate.setUTCDate(tempDate.getUTCDate() - 1);
+              }
+              return tempDate;
+          };
+          if (days < 1) return startDate;
+          const result = new Date(startDate.getTime());
+          let added = 0;
+          while(nonWorkingDays.has(result.getUTCDay())){
+            result.setUTCDate(result.getUTCDate() + 1);
+          }
+          while (added < days -1) {
+            result.setUTCDate(result.getUTCDate() + 1);
+            if (!nonWorkingDays.has(result.getUTCDay())) {
+              added++;
+            }
+          }
+          return result;
+      };
+      const addOrSubtractWorkingDays = (startDate, days, nonWorkingDays) => {
+          const result = new Date(startDate.getTime());
+          let remaining = Math.abs(days);
+          const direction = Math.sign(days);
+          if(direction === 0) return result;
+          while (remaining > 0) {
+            result.setUTCDate(result.getUTCDate() + direction);
+            if (!nonWorkingDays.has(result.getUTCDay())) {
+              remaining--;
+            }
+          }
+          return result;
+      };
+
+      // --- from lib/translations.ts ---
+      const translations = {
+        ganttChartMaker: { en: 'Schedule with Drag-and-Drop', ja: 'ドラッグして工程表' },
+        appDescription: { en: 'Drag on the timeline to add tasks. Drag tasks to change their duration.', ja: '工程表をドラッグしてタスクを追加｡タスクをドラッグして期間を変更｡' },
+        projectNameLabel: { en: 'Project Name', ja: 'プロジェクト名' },
+        projectNamePlaceholder: { en: 'Enter your project name here', ja: 'ここにプロジェクト名を入力' },
+        untitledProject: { en: 'Untitled Project', ja: '無題のプロジェクト' },
+        projectStartDate: { en: 'Project Start Date', ja: 'プロジェクト開始日' },
+        projectEndDate: { en: 'Project Finish Date', ja: 'プロジェクト終了日' },
+        creationDate: { en: 'Creation Date', ja: '作成日' },
+        creator: { en: 'Creator', ja: '作成者' },
+        dateFormatPlaceholder: { en: 'YYYY/MM/DD', ja: 'YYYY/MM/DD' },
+        taskDetails: { en: 'Task Details', ja: 'タスク詳細' },
+        assignee: { en: 'Assignee', ja: '担当者' },
+        startDate: { en: 'Start Date', ja: '開始日' },
+        endDate: { en: 'Finish Date', ja: '終了日' },
+        duration: { en: 'Days', ja: '日数' },
+        progress: { en: 'Progress', ja: '進捗' },
+        manHours: { en: 'Manpower', ja: '人工' },
+        total: { en: 'Total', ja: '合計' },
+        taskNamePlaceholder: { en: 'Task Name', ja: 'タスク名' },
+        addTask: { en: 'Add Task', ja: 'タスクを追加' },
+        duplicateTask: { en: 'Duplicate Task', ja: 'タスクを複製' },
+        copySuffix: { en: ' (Copy)', ja: ' (コピー)' },
+        deleteAllTasks: { en: 'Delete All Tasks', ja: '全タスクを削除' },
+        confirmDeleteAllTasks: { en: 'Are you sure you want to delete all tasks? This action cannot be undone.', ja: 'すべてのタスクを削除しますか？この操作は元に戻せません。' },
+        newTaskName: { en: 'New Task', ja: '新規タスク' },
+        temporaryWorks: { en: 'Temporary Works', ja: '仮設工事' },
+        earthworks: { en: 'Earthworks', ja: '土工事' },
+        structuralWork: { en: 'Structural Work', ja: '躯体工事' },
+        exteriorWork: { en: 'Exterior Work', ja: '外装工事' },
+        interiorWork: { en: 'Interior Work', ja: '内装工事' },
+        mepWorks: { en: 'MEP Works', ja: '設備工事' },
+        landscaping: { en: 'Landscaping', ja: '外構工事' },
+        completionHandover: { en: 'Completion & Handover', ja: '竣工・引渡' },
+        openCalendar: { en: 'Open calendar', ja: 'カレンダーを開く' },
+        dragToSetDuration: { en: 'Drag to set duration', ja: 'ドラッグして期間を設定' },
+        reorderTask: { en: 'Reorder task', ja: 'タスクを並べ替え' },
+        settings: { en: 'Settings', ja: '設定' },
+        holidaySettings: { en: 'Holiday Settings', ja: '休日設定' },
+        holidaySettingsDesc: { en: 'Select days to be excluded from workdays.', ja: '稼働日から除外する曜日を選択してください。' },
+        displaySettings: { en: 'Display Settings', ja: '表示設定' },
+        displaySettingsDesc: { en: 'Select columns to show in the task details.', ja: 'タスク詳細に表示する列を選択してください。' },
+        rowHeightSettings: { en: 'Row Height Settings', ja: '行の高さ設定' },
+        rowHeightSettingsDesc: { en: 'Adjust the height of each task row.', ja: '各タスク行の高さを調整します。' },
+        rowHeight: { en: 'Row Height', ja: '行の高さ' },
+        colorSettings: { en: 'Color Settings', ja: 'カラー設定' },
+        baseColor: { en: 'Base Color', ja: '基本色' },
+        progressColor: { en: 'Progress Color', ja: '進捗色' },
+        textColor: { en: 'Text Color', ja: '文字色' },
+        progressLineColor: { en: 'Progress Line Color', ja: 'イナズマ線の色' },
+        resetToDefaults: { en: 'Reset to Defaults', ja: 'デフォルトに戻す' },
+        sun: { en: 'Sunday', ja: '日曜日' },
+        mon: { en: 'Monday', ja: '月曜日' },
+        tue: { en: 'Tuesday', ja: '火曜日' },
+        wed: { en: 'Wednesday', ja: '水曜日' },
+        thu: { en: 'Thursday', ja: '木曜日' },
+        fri: { en: 'Friday', ja: '金曜日' },
+        sat: { en: 'Saturday', ja: '土曜日' },
+        close: { en: 'Close', ja: '閉じる' },
+        delete: { en: 'Delete', ja: '削除' },
+        cancel: { en: 'Cancel', ja: 'キャンセル' },
+        zoom: { en: 'Zoom', ja: 'ズーム' },
+        zoomIn: { en: 'Zoom In', ja: '拡大' },
+        zoomOut: { en: 'Zoom Out', ja: '縮小' },
+        progressLine: { en: 'Progress Line', ja: 'イナズマ線' },
+        clearProgressLine: { en: 'Clear Progress Line', ja: 'イナズマ線を消去' },
+        exportData: { en: 'Export Data', ja: 'データのエクスポート' },
+        importData: { en: 'Import Data', ja: 'データのインポート' },
+        importError: { en: 'Failed to import file. Please ensure it is a valid project file.', ja: 'ファイルのインポートに失敗しました。有効なプロジェクトファイルであることを確認してください。' },
+      };
+
+      // --- from contexts/LanguageContext.tsx ---
+      const LanguageContext = React.createContext(undefined);
+      const LanguageProvider = ({ children }) => {
+        const [language, setLanguage] = React.useState('ja');
+        return (
+          <LanguageContext.Provider value={{ language, setLanguage }}>
+            {children}
+          </LanguageContext.Provider>
+        );
+      };
+      const useLanguage = () => {
+        const context = React.useContext(LanguageContext);
+        if (context === undefined) {
+          throw new Error('useLanguage must be used within a LanguageProvider');
+        }
+        return context;
+      };
+
+      // --- from components/icons ---
+      const PlusIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6" {...props} > <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /> </svg> );
+      const TrashIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5" {...props} > <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.134-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.067-2.09 1.02-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /> </svg> );
+      const CalendarIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props} > <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0h18M-4.5 12h22.5" /> </svg> );
+      const GripVerticalIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props} > <circle cx="9" cy="12" r="1" /> <circle cx="9" cy="5" r="1" /> <circle cx="9" cy="19" r="1" /> <circle cx="15" cy="12" r="1" /> <circle cx="15" cy="5" r="1" /> <circle cx="15" cy="19" r="1" /> </svg> );
+      const SettingsIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props} > <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.438.995s.145.755.438.995l1.003.827c.48.398.668 1.03.26 1.431l-1.296 2.247a1.125 1.125 0 0 1-1.37.49l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 0 1-.22-.127c-.324-.196-.72-.257-1.075-.124l-1.217.456a1.125 1.125 0 0 1-1.37-.49l-1.296-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.437-.995s-.145-.755-.437-.995l-1.004-.827a1.125 1.125 0 0 1-.26-1.431l1.296-2.247a1.125 1.125 0 0 1 1.37-.49l1.217.456c.355.133.75.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /> <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" /> </svg> );
+      const ZoomInIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props} > <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" /> </svg> );
+      const ZoomOutIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props} > <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM13.5 10.5h-6" /> </svg> );
+      const ProgressLineIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props} > <path strokeLinecap="round" strokeLinejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" /> </svg> );
+      const XIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props} > <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /> </svg> );
+      const DownloadIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5" {...props} > <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /> </svg> );
+      const UploadIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5" {...props} > <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /> </svg> );
+      const DuplicateIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5" {...props} > <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5 .124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" /> </svg> );
+
+      // --- from components/ConfirmModal.tsx ---
+      const ConfirmModal = ({ title, message, onConfirm, onClose, confirmText, cancelText }) => {
+        const { language } = useLanguage();
+        const t = (key) => translations[key][language];
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-sm m-4" onClick={e => e.stopPropagation()}>
+              <div className="p-4 sm:p-5 border-b flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
+                <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600"> <XIcon className="w-5 h-5" /> </button>
+              </div>
+              <div className="p-4 sm:p-5"> <p className="text-sm text-slate-600">{message}</p> </div>
+              <div className="p-4 bg-slate-50 flex justify-end space-x-3 rounded-b-lg">
+                <button onClick={onClose} className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" > {cancelText || t('cancel')} </button>
+                <button onClick={onConfirm} className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500" > {confirmText || t('delete')} </button>
+              </div>
+            </div>
+          </div>
+        );
+      };
+      
+      // --- from components/Calendar.tsx ---
+      const DAYS_OF_WEEK_CALENDAR = { en: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'], ja: ['日', '月', '火', '水', '木', '金', '土'], }
+      const Calendar = ({ initialDate, taskStartDate, taskEndDate, onSelectDate, minDate, maxDate, showToday = false, position = 'bottom' }) => {
+        const { language } = useLanguage();
+        const getInitialDisplayDate = () => {
+          if (initialDate) {
+              const parsedDate = parseUTCDateString(initialDate);
+              if (parsedDate) return parsedDate;
+          }
+          const now = new Date();
+          return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        };
+        const [displayDate, setDisplayDate] = React.useState(getInitialDisplayDate);
+        const selectedDate = React.useMemo(() => { return initialDate ? parseUTCDateString(initialDate) : null; }, [initialDate]);
+        const taskStart = React.useMemo(() => taskStartDate ? parseUTCDateString(taskStartDate) : null, [taskStartDate]);
+        const taskEnd = React.useMemo(() => taskEndDate ? parseUTCDateString(taskEndDate) : null, [taskEndDate]);
+        const minDateTime = React.useMemo(() => minDate ? parseUTCDateString(minDate)?.getTime() : -Infinity, [minDate]);
+        const maxDateTime = React.useMemo(() => maxDate ? parseUTCDateString(maxDate)?.getTime() : Infinity, [maxDate]);
+        const today = React.useMemo(() => {
+          if (!showToday) return null;
+          const now = new Date();
+          return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        }, [showToday]);
+        const changeMonth = (amount) => { setDisplayDate(prev => { const newDate = new Date(prev.getTime()); newDate.setUTCMonth(newDate.getUTCMonth() + amount); return newDate; }); };
+        const calendarGrid = React.useMemo(() => {
+          const year = displayDate.getUTCFullYear();
+          const month = displayDate.getUTCMonth();
+          const firstDayOfMonth = new Date(Date.UTC(year, month, 1)).getUTCDay();
+          const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+          const days = [];
+          for (let i = 0; i < firstDayOfMonth; i++) { days.push(null); }
+          for (let i = 1; i <= daysInMonth; i++) { days.push(new Date(Date.UTC(year, month, i))); }
+          return days;
+        }, [displayDate]);
+        const handleDateClick = (date) => { onSelectDate(formatDateUTC(date)); };
+        const positionClasses = position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2';
+        return (
+          <div data-calendar-popover className={`absolute ${positionClasses} w-72 bg-white border border-gray-300 rounded-lg shadow-xl z-40 p-2 font-sans`}>
+            <div className="flex justify-between items-center mb-2 px-2">
+              <button onClick={() => changeMonth(-1)} className="p-1 rounded-full hover:bg-gray-100" aria-label="Previous month"> <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg> </button>
+              <div className="font-semibold text-sm text-gray-700"> {displayDate.toLocaleString(language === 'ja' ? 'ja-JP' : 'en-US', { year: 'numeric', month: 'long', timeZone: 'UTC' })} </div>
+              <button onClick={() => changeMonth(1)} className="p-1 rounded-full hover:bg-gray-100" aria-label="Next month"> <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg> </button>
+            </div>
+            <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500 mb-1"> {DAYS_OF_WEEK_CALENDAR[language].map(day => <div key={day}>{day}</div>)} </div>
+            <div className="grid grid-cols-7 gap-1">
+              {calendarGrid.map((date, index) => {
+                  if (!date) { return <div key={index}></div>; }
+                  const dayTime = date.getTime();
+                  const isSelected = selectedDate && dayTime === selectedDate.getTime();
+                  const isToday = today && dayTime === today.getTime();
+                  const isDisabled = dayTime < minDateTime || dayTime > maxDateTime;
+                  const classNames = ['w-full', 'h-9', 'text-sm', 'transition-colors', 'relative', 'flex', 'items-center', 'justify-center'];
+                  let inRange = false;
+                  if (taskStart && taskEnd) { const startTime = taskStart.getTime(); const endTime = taskEnd.getTime(); inRange = dayTime >= startTime && dayTime <= endTime; }
+                  if (isDisabled) { classNames.push('text-gray-300', 'cursor-not-allowed'); } 
+                  else {
+                      if (isSelected) { classNames.push('bg-indigo-600', 'text-white', 'rounded-full'); } 
+                      else if (inRange) { classNames.push('bg-indigo-100'); const startTime = taskStart.getTime(); const endTime = taskEnd.getTime(); if (startTime === endTime) { classNames.push('rounded-full'); } else if (dayTime === startTime) { classNames.push('rounded-l-full'); } else if (dayTime === endTime) { classNames.push('rounded-r-full'); } } 
+                      else { classNames.push('hover:bg-gray-200', 'rounded-full'); }
+                      if (isToday && !isSelected) { classNames.push('ring-2', 'ring-blue-500'); }
+                  }
+                  return ( <div key={index} className="flex justify-center items-center"> <button onClick={() => !isDisabled && handleDateClick(date)} disabled={isDisabled} className={classNames.join(' ')} > <span className="relative">{date.getUTCDate()}</span> </button> </div> )
+              })}
+            </div>
+          </div>
+        );
+      };
+      
+      // --- from components/SettingsModal.tsx ---
+      const SettingsModal = ({ onClose, holidays, setHolidays, columnVisibility, setColumnVisibility, baseColor, setBaseColor, progressColor, setProgressColor, textColor, setTextColor, progressLineColor, setProgressLineColor, rowHeight, setRowHeight, onResetColors, }) => {
+        const { language } = useLanguage(); const t = (key) => translations[key][language];
+        const handleHolidayChange = (dayIndex) => { setHolidays(prev => { const newHolidays = new Set(prev); if (newHolidays.has(dayIndex)) { newHolidays.delete(dayIndex); } else { newHolidays.add(dayIndex); } return newHolidays; }); };
+        const handleColumnVisibilityChange = (column) => { setColumnVisibility((prev) => ({ ...prev, [column]: !prev[column], })); };
+        const handleInputFocus = (e) => { e.target.select(); };
+        const daysOfWeek = [ { key: 'sun', index: 0 }, { key: 'mon', index: 1 }, { key: 'tue', index: 2 }, { key: 'wed', index: 3 }, { key: 'thu', index: 4 }, { key: 'fri', index: 5 }, { key: 'sat', index: 6 }, ];
+        const columns = ['assignee', 'startDate', 'endDate', 'duration', 'progress', 'manHours'];
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
+              <div className="p-6 border-b"> <h2 className="text-xl font-bold text-slate-800">{t('settings')}</h2> </div>
+              <div className="p-6 space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-700">{t('holidaySettings')}</h3>
+                  <p className="text-sm text-slate-500 mb-3">{t('holidaySettingsDesc')}</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {daysOfWeek.map(({ key, index }) => {
+                      const dayColorClass = index === 0 ? 'text-red-600' : index === 6 ? 'text-blue-600' : 'text-slate-600';
+                      return ( <label key={key} className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 cursor-pointer"> <input type="checkbox" checked={holidays.has(index)} onChange={() => handleHolidayChange(index)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" /> <span className={`text-sm ${dayColorClass}`}>{t(key)}</span> </label> );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-700">{t('displaySettings')}</h3>
+                  <p className="text-sm text-slate-500 mb-3">{t('displaySettingsDesc')}</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {columns.map(column => ( <label key={column} className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 cursor-pointer"> <input type="checkbox" checked={columnVisibility[column]} onChange={() => handleColumnVisibilityChange(column)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" /> <span className="text-sm text-slate-600 capitalize">{t(column)}</span> </label> ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-slate-700">{t('colorSettings')}</h3>
+                    <button onClick={onResetColors} className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors" > {t('resetToDefaults')} </button>
+                  </div>
+                  <div className="mt-3 space-y-4">
+                    <div className="flex items-center justify-between"> <label htmlFor="baseColorText" className="text-sm text-slate-600">{t('baseColor')}</label> <div className="flex items-center gap-2"> <input id="baseColorText" type="text" value={baseColor} onChange={(e) => setBaseColor(e.target.value)} onFocus={handleInputFocus} className="w-24 px-2 py-1 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500" /> <input type="color" aria-label={t('baseColor')} value={baseColor} onChange={(e) => setBaseColor(e.target.value)} className="p-1 h-8 w-10 block bg-white border border-gray-300 rounded-md cursor-pointer" /> </div> </div>
+                    <div className="flex items-center justify-between"> <label htmlFor="progressColorText" className="text-sm text-slate-600">{t('progressColor')}</label> <div className="flex items-center gap-2"> <input id="progressColorText" type="text" value={progressColor} onChange={(e) => setProgressColor(e.target.value)} onFocus={handleInputFocus} className="w-24 px-2 py-1 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500" /> <input type="color" aria-label={t('progressColor')} value={progressColor} onChange={(e) => setProgressColor(e.target.value)} className="p-1 h-8 w-10 block bg-white border border-gray-300 rounded-md cursor-pointer" /> </div> </div>
+                    <div className="flex items-center justify-between"> <label htmlFor="textColorText" className="text-sm text-slate-600">{t('textColor')}</label> <div className="flex items-center gap-2"> <input id="textColorText" type="text" value={textColor} onChange={(e) => setTextColor(e.target.value)} onFocus={handleInputFocus} className="w-24 px-2 py-1 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500" /> <input type="color" aria-label={t('textColor')} value={textColor} onChange={(e) => setTextColor(e.target.value)} className="p-1 h-8 w-10 block bg-white border border-gray-300 rounded-md cursor-pointer" /> </div> </div>
+                    <div className="flex items-center justify-between"> <label htmlFor="progressLineColorText" className="text-sm text-slate-600">{t('progressLineColor')}</label> <div className="flex items-center gap-2"> <input id="progressLineColorText" type="text" value={progressLineColor} onChange={(e) => setProgressLineColor(e.target.value)} onFocus={handleInputFocus} className="w-24 px-2 py-1 border border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500" /> <input type="color" aria-label={t('progressLineColor')} value={progressLineColor} onChange={(e) => setProgressLineColor(e.target.value)} className="p-1 h-8 w-10 block bg-white border border-gray-300 rounded-md cursor-pointer" /> </div> </div>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-700">{t('rowHeightSettings')}</h3>
+                  <p className="text-sm text-slate-500 mb-3">{t('rowHeightSettingsDesc')}</p>
+                  <div className="flex items-center space-x-4">
+                     <label htmlFor="rowHeight" className="text-sm text-slate-600">{t('rowHeight')}</label>
+                    <input id="rowHeight" type="range" min="40" max="80" value={rowHeight} onChange={(e) => setRowHeight(Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+                    <span className="text-sm font-medium text-slate-600 w-12 text-center">{rowHeight}px</span>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 bg-slate-50 text-right rounded-b-lg"> <button onClick={onClose} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" > {t('close')} </button> </div>
+            </div>
+          </div>
+        );
+      };
+
+      // --- from components/GanttChart.tsx ---
+      const GanttChart = ({
+        projectName, setProjectName, projectStart, setProjectStart, projectEnd, setProjectEnd, creationDate, setCreationDate, creatorName, setCreatorName, tasks, holidays, columnVisibility, zoomIndex, progressLineDate, baseColor, progressColor, textColor, progressLineColor, rowHeight, onDeleteAllTasks, onAddTask, onDeleteTask, onDuplicateTask, onTaskChange, onDurationChange, onProgressChange, onManHoursChange, onTaskDateSet, onTaskDragUpdate, onTaskReorder,
+      }) => {
+        const { language } = useLanguage();
+        const t = React.useCallback((key) => { return translations[key][language]; }, [language]);
+        const ZOOM_LEVELS = [8, 12, 18, 24, 40, 64];
+        const [activeCalendar, setActiveCalendar] = React.useState(null);
+        const timelineHeaderRef = React.useRef(null);
+        const taskRowRefs = React.useRef({});
+        const taskDetailsHeaderRef = React.useRef(null);
+        const ganttGridRef = React.useRef(null);
+        const [dragPreview, setDragPreview] = React.useState(null);
+        const [tooltip, setTooltip] = React.useState(null);
+        const [dragAction, setDragAction] = React.useState(null);
+        const [reorderState, setReorderState] = React.useState(null);
+        const [totalGridWidth, setTotalGridWidth] = React.useState(0);
+        const handleInputFocus = (e) => { e.target.select(); };
+        React.useEffect(() => {
+          const gridElement = ganttGridRef.current;
+          if (gridElement) {
+              const observer = new ResizeObserver((entries) => {
+                  if (entries[0]) { setTotalGridWidth(entries[0].target.scrollWidth); }
+              });
+              observer.observe(gridElement);
+              return () => { if (gridElement) { observer.unobserve(gridElement); } };
+          }
+        }, []);
+        const dayWidth = React.useMemo(() => ZOOM_LEVELS[zoomIndex], [zoomIndex]);
+        const openCalendar = React.useCallback((e, type, taskId) => {
+          if (type === 'taskStartDate' || type === 'taskEndDate') { setActiveCalendar(prev => { const isActive = prev?.type === type && prev?.taskId === taskId; return isActive ? null : { type, taskId, position: 'bottom' }; }); return; }
+          const button = e.currentTarget; const buttonRect = button.getBoundingClientRect(); const viewportHeight = window.innerHeight; const spaceBelow = viewportHeight - buttonRect.bottom; const spaceAbove = buttonRect.top; const calendarHeight = 320; let position = 'bottom';
+          if (spaceBelow >= calendarHeight) { position = 'bottom'; } else if (spaceAbove >= calendarHeight) { position = 'top'; } else if (spaceAbove > spaceBelow) { position = 'top'; }
+          setActiveCalendar(prev => { const isActive = prev?.type === type && prev?.taskId === taskId; return isActive ? null : { type, taskId, position }; });
+        }, []);
+        React.useEffect(() => {
+          if (!activeCalendar) return;
+          const handleClickOutside = (event) => { if (!(event.target).closest('[data-calendar-popover]') && !(event.target).closest('[data-calendar-toggle]')) { setActiveCalendar(null); } };
+          document.addEventListener('mousedown', handleClickOutside);
+          return () => { document.removeEventListener('mousedown', handleClickOutside); };
+        }, [activeCalendar]);
+        React.useEffect(() => { const taskIds = new Set(tasks.map(t => t.id)); Object.keys(taskRowRefs.current).forEach(taskId => { if (!taskIds.has(taskId)) { delete taskRowRefs.current[taskId]; } }); }, [tasks]);
+        const dateArray = React.useMemo(() => { const start = parseUTCDateString(projectStart); const end = parseUTCDateString(projectEnd); if (!start || !end || start > end) return []; return getDatesInRange(start, end); }, [projectStart, projectEnd]);
+        const getTaskDuration = React.useCallback((startDateStr, endDateStr) => { const start = parseUTCDateString(startDateStr); const end = parseUTCDateString(endDateStr); if (!start || !end) return 0; return calculateWorkingDays(start, end, holidays); }, [holidays]);
+        const getGridPosition = (start, end) => {
+          if (dateArray.length === 0 || end < start) return { gridColumn: '1 / span 1', opacity: 0 };
+          const projectStartDate = dateArray[0]; const projectEndDate = dateArray[dateArray.length - 1];
+          const renderStart = new Date(Math.max(start.getTime(), projectStartDate.getTime())); const renderEnd = new Date(Math.min(end.getTime(), projectEndDate.getTime()));
+          if (renderEnd < renderStart) { return { gridColumn: '1 / span 1', opacity: 0 }; }
+          const startIndex = dateArray.findIndex(d => d.getTime() === renderStart.getTime()); const endIndex = dateArray.findIndex(d => d.getTime() === renderEnd.getTime());
+          if (startIndex === -1 || endIndex === -1) { return { gridColumn: '1 / span 1', opacity: 0 }; }
+          return { gridColumn: `${startIndex + 1} / ${endIndex + 2}` };
+        };
+        const getTaskSegments = React.useCallback((task) => {
+          const start = parseUTCDateString(task.startDate); const end = parseUTCDateString(task.endDate); if (!start || !end || end < start) return [];
+          const segments = []; let segmentStart = null; const current = new Date(start.getTime());
+          while(current.getTime() <= end.getTime()){
+            const isHoliday = holidays.has(current.getUTCDay());
+            if(!isHoliday && segmentStart === null){ segmentStart = new Date(current.getTime()); } else if(isHoliday && segmentStart !== null){ const segmentEnd = new Date(current.getTime()); segmentEnd.setUTCDate(segmentEnd.getUTCDate() - 1); segments.push({startDate: segmentStart, endDate: segmentEnd}); segmentStart = null; }
+            current.setUTCDate(current.getUTCDate() + 1);
+          }
+          if (segmentStart !== null) { segments.push({startDate: segmentStart, endDate: end}); }
+          return segments;
+        }, [holidays]);
+        const monthHeaders = React.useMemo(() => {
+          const months = []; if (dateArray.length === 0) return months;
+          let currentMonth = -1; let currentYear = -1;
+          dateArray.forEach(date => {
+              const month = date.getUTCMonth(); const year = date.getUTCFullYear();
+              if (month !== currentMonth || year !== currentYear) {
+                  currentMonth = month; currentYear = year;
+                  const formattedString = date.toLocaleString(language === 'ja' ? 'ja-JP' : 'en-US', { year: 'numeric', month: 'long', timeZone: 'UTC', });
+                  months.push({ formatted: formattedString, days: 0 });
+              }
+              months[months.length - 1].days++;
+          });
+          return months;
+        }, [dateArray, language]);
+        const dateHeaders = React.useMemo(() => {
+          if (dateArray.length === 0) return []; let interval = 1;
+          if (dayWidth < 24) interval = 2; if (dayWidth < 18) interval = 3; if (dayWidth < 12) interval = 7;
+          const headers = [];
+          for (let i = 0; i < dateArray.length; i += interval) {
+            const date = dateArray[i]; const remainingDays = dateArray.length - i; const span = Math.min(interval, remainingDays);
+            const lastDayInSpan = dateArray[i + span - 1]; const dayAfterLast = addDaysUTC(lastDayInSpan, 1); const isLastDayOfMonth = dayAfterLast.getUTCDate() === 1;
+            headers.push({ date, span, isLastDayOfMonth, });
+          }
+          return headers;
+        }, [dateArray, dayWidth]);
+        const getDateFromX = React.useCallback((x) => {
+          if (!ganttGridRef.current || !taskDetailsHeaderRef.current || dateArray.length === 0) return null;
+          const gridRect = ganttGridRef.current.getBoundingClientRect(); const detailsWidth = taskDetailsHeaderRef.current.offsetWidth;
+          const timelineStartLeft = gridRect.left + detailsWidth; const relativeX = x - timelineStartLeft;
+          if (dayWidth <= 0 || relativeX < 0) return null;
+          const dateIndex = Math.floor(relativeX / dayWidth);
+          if (dateIndex >= 0 && dateIndex < dateArray.length) { return dateArray[dateIndex]; }
+          return null;
+        }, [dateArray, dayWidth]);
+        const handleMouseDown = React.useCallback((e, taskId) => {
+            const startDate = getDateFromX(e.clientX);
+            if (startDate) {
+                if (holidays.has(startDate.getUTCDay())) { return; }
+                const startDateStr = formatDateUTC(startDate);
+                setDragPreview({ taskId, start: startDateStr, end: startDateStr });
+            }
+            setTooltip(null);
+        }, [getDateFromX, holidays]);
+        const handleMouseMove = React.useCallback((e) => {
+          const timelineRowCell = e.currentTarget;
+          if(dragPreview) {
+              const currentDate = getDateFromX(e.clientX);
+              if (currentDate) { setDragPreview(prev => (prev ? { ...prev, end: formatDateUTC(currentDate) } : null)); }
+              return;
+          }
+          if (dragAction || reorderState) { timelineRowCell.style.cursor = ''; setTooltip(null); return; }
+          const taskId = timelineRowCell.dataset.taskRowId; const task = tasks.find(t => t.id === taskId);
+          if (task && !task.startDate && !task.endDate) {
+              const dateUnderCursor = getDateFromX(e.clientX);
+              const isHolidayUnderCursor = dateUnderCursor ? holidays.has(dateUnderCursor.getUTCDay()) : true;
+              if (isHolidayUnderCursor) { timelineRowCell.style.cursor = 'not-allowed'; setTooltip(null); } 
+              else {
+                  timelineRowCell.style.cursor = 'crosshair';
+                  setTooltip({ visible: true, x: e.clientX, y: e.clientY, content: t('dragToSetDuration'), });
+              }
+          } else { timelineRowCell.style.cursor = 'default'; setTooltip(null); }
+        }, [dragPreview, dragAction, reorderState, tasks, getDateFromX, holidays, t]);
+        const handleMouseLeave = React.useCallback((e) => { e.currentTarget.style.cursor = 'default'; setTooltip(null); }, []);
+        React.useEffect(() => {
+          if (!dragPreview) return;
+          const handleMouseUpGlobal = () => { if (dragPreview) { onTaskDateSet(dragPreview.taskId, dragPreview.start, dragPreview.end); setDragPreview(null); } };
+          window.addEventListener('mouseup', handleMouseUpGlobal);
+          return () => window.removeEventListener('mouseup', handleMouseUpGlobal);
+        }, [dragPreview, onTaskDateSet]);
+        const handleDragStart = React.useCallback((e, task, type) => {
+          e.stopPropagation();
+          const start = parseUTCDateString(task.startDate); const end = parseUTCDateString(task.endDate);
+          if (!start || !end) return;
+          setDragAction({ type, taskId: task.id, initialX: e.clientX, initialStartDate: start, initialEndDate: end, });
+        }, []);
+        const handleDragMove = React.useCallback((e) => {
+          if (!dragAction) return; if (dayWidth <= 0) return;
+          const deltaX = e.clientX - dragAction.initialX; const dayOffset = Math.round(deltaX / dayWidth);
+          onTaskDragUpdate( dragAction.taskId, dragAction.type, dragAction.initialStartDate, dragAction.initialEndDate, dayOffset );
+          const task = tasks.find(t => t.id === dragAction.taskId);
+          if (task) {
+              const newStart = parseUTCDateString(task.startDate); const newEnd = parseUTCDateString(task.endDate);
+              if (newStart && newEnd && newStart > newEnd) {
+                  if (dragAction.type === 'resize-start') { setDragAction(prev => (prev ? { ...prev, type: 'resize-end' } : null)); } 
+                  else if (dragAction.type === 'resize-end') { setDragAction(prev => (prev ? { ...prev, type: 'resize-start' } : null)); }
+              }
+          }
+        }, [dragAction, dayWidth, onTaskDragUpdate, tasks]);
+        const handleDragEnd = React.useCallback(() => { setDragAction(null); }, []);
+        React.useEffect(() => {
+          const getCursor = (type) => { switch (type) { case 'move': return 'grabbing'; case 'resize-start': case 'resize-end': return 'ew-resize'; default: return 'auto'; } };
+          if (dragAction) {
+              document.body.style.cursor = getCursor(dragAction.type); document.body.style.userSelect = 'none';
+              window.addEventListener('mousemove', handleDragMove); window.addEventListener('mouseup', handleDragEnd);
+          }
+          return () => {
+              window.removeEventListener('mousemove', handleDragMove); window.removeEventListener('mouseup', handleDragEnd);
+              if (document.body) { document.body.style.cursor = 'auto'; document.body.style.userSelect = 'auto'; }
+          };
+        }, [dragAction, handleDragMove, handleDragEnd]);
+        const handleReorderStart = React.useCallback((e, taskId) => { e.preventDefault(); setReorderState({ draggedTaskId: taskId, dropIndex: null }); }, []);
+        const handleReorderMove = React.useCallback((e) => {
+          if (!reorderState) return;
+          const positions = tasks.map(task => {
+              const el = taskRowRefs.current[task.id];
+              if (!el) return { id: task.id, top: -1, bottom: -1, mid: -1 };
+              const rect = el.getBoundingClientRect();
+              return { id: task.id, top: rect.top, bottom: rect.bottom, mid: rect.top + rect.height / 2 };
+          }).filter(p => p.top !== -1);
+          const target = positions.find(p => e.clientY >= p.top && e.clientY <= p.bottom);
+          let newDropIndex = null;
+          if (target) {
+              const targetIndex = tasks.findIndex(t => t.id === target.id);
+              newDropIndex = e.clientY < target.mid ? targetIndex : targetIndex + 1;
+          } else {
+              const firstTaskRect = taskRowRefs.current[tasks[0]?.id]?.getBoundingClientRect();
+              if (firstTaskRect && e.clientY < firstTaskRect.top) { newDropIndex = 0; } 
+              else {
+                  const lastTaskRect = taskRowRefs.current[tasks[tasks.length-1]?.id]?.getBoundingClientRect();
+                  if(lastTaskRect && e.clientY > lastTaskRect.bottom) { newDropIndex = tasks.length; }
+              }
+          }
+          setReorderState(prev => (prev ? { ...prev, dropIndex: newDropIndex } : null));
+        }, [reorderState, tasks]);
+        const handleReorderEnd = React.useCallback(() => {
+          if (reorderState && typeof reorderState.dropIndex === 'number') { onTaskReorder(reorderState.draggedTaskId, reorderState.dropIndex); }
+          setReorderState(null);
+        }, [reorderState, onTaskReorder]);
+        React.useEffect(() => {
+          if (reorderState?.draggedTaskId) {
+              document.body.style.cursor = 'grabbing'; document.body.style.userSelect = 'none';
+              window.addEventListener('mousemove', handleReorderMove); window.addEventListener('mouseup', handleReorderEnd);
+          }
+          return () => {
+              window.removeEventListener('mousemove', handleReorderMove); window.removeEventListener('mouseup', handleReorderEnd);
+              if (document.body) { document.body.style.cursor = 'auto'; document.body.style.userSelect = 'auto'; }
+          };
+        }, [reorderState, handleReorderMove, handleReorderEnd]);
+        const dropIndex = reorderState?.dropIndex;
+        const progressLinePath = React.useMemo(() => {
+          if (!progressLineDate || dateArray.length === 0 || !taskDetailsHeaderRef.current || !timelineHeaderRef.current) return null;
+          const headerHeight = timelineHeaderRef.current.offsetHeight;
+          const taskDetailsWidth = taskDetailsHeaderRef.current.offsetWidth || 0;
+          const baselineDate = parseUTCDateString(progressLineDate);
+          if (!baselineDate) return null;
+          const baselineDateIndex = dateArray.findIndex(d => d.getTime() === baselineDate.getTime());
+          if (baselineDateIndex === -1) return null;
+          const baselineX = (baselineDateIndex + 1) * dayWidth;
+          const taskProgressXs = tasks.map(task => {
+              let currentTaskX = baselineX;
+              const startDate = parseUTCDateString(task.startDate); const endDate = parseUTCDateString(task.endDate);
+              if (startDate && endDate) {
+                  const isCompletedEarly = endDate.getTime() < baselineDate.getTime() && task.progress === 100;
+                  const isNotYetStarted = startDate.getTime() > baselineDate.getTime() && task.progress === 0;
+                  if (!isCompletedEarly && !isNotYetStarted) {
+                      const totalWorkDays = calculateWorkingDays(startDate, endDate, holidays);
+                      if (totalWorkDays > 0) {
+                          let completedWorkDays = totalWorkDays * (task.progress / 100);
+                          let currentPosDate = new Date(startDate.getTime()); let pixelOffset = 0;
+                          while(completedWorkDays > 0 && currentPosDate.getTime() <= endDate.getTime()) {
+                              if(!holidays.has(currentPosDate.getUTCDay())){
+                                 const consumption = Math.min(1, completedWorkDays);
+                                 pixelOffset += consumption * dayWidth;
+                                 completedWorkDays -= consumption;
+                              } else { pixelOffset += dayWidth; }
+                              if (completedWorkDays > 0) { currentPosDate.setUTCDate(currentPosDate.getUTCDate() + 1); }
+                          }
+                          const startIndex = dateArray.findIndex(d => d.getTime() === startDate.getTime());
+                          if(startIndex !== -1) { currentTaskX = (startIndex * dayWidth) + pixelOffset; }
+                      }
+                  }
+              }
+              return taskDetailsWidth + currentTaskX;
+          });
+          const taskBarHeight = 32;
+          const spaceAboveBelowBar = (rowHeight - taskBarHeight) / 2;
+          const finalBaselineX = taskDetailsWidth + baselineX;
+          let path = `M ${finalBaselineX} 0 L ${finalBaselineX} ${headerHeight}`;
+          if (tasks.length > 0 && taskProgressXs.length > 0) {
+              tasks.forEach((_, i) => {
+                  const progressX = taskProgressXs[i];
+                  const rowTopY = headerHeight + i * rowHeight;
+                  const barTopY = rowTopY + spaceAboveBelowBar;
+                  const barCenterY = rowTopY + rowHeight / 2;
+                  const barBottomY = rowTopY + rowHeight - spaceAboveBelowBar;
+                  const rowBottomY = rowTopY + rowHeight;
+                  path += ` L ${finalBaselineX} ${barTopY}`;
+                  path += ` L ${progressX} ${barCenterY}`;
+                  path += ` L ${finalBaselineX} ${barBottomY}`;
+                  path += ` L ${finalBaselineX} ${rowBottomY}`;
+              });
+          }
+          return path;
+        }, [progressLineDate, tasks, dateArray, dayWidth, holidays, rowHeight]);
+        const totalContentHeight = (timelineHeaderRef.current?.offsetHeight || 0) + tasks.length * rowHeight;
+        const totalManHours = React.useMemo(() => {
+          return tasks.reduce((sum, task) => sum + (task.manHours || 0), 0);
+        }, [tasks]);
+        return (
+          <div className="bg-white rounded-lg shadow-lg flex flex-col max-h-[calc(100vh-16rem)] sm:max-h-[calc(100vh-14rem)]">
+            {tooltip?.visible && ( <div className="fixed bg-gray-800 text-white text-xs rounded py-1 px-2 pointer-events-none shadow-lg" style={{ top: tooltip.y + 20, left: tooltip.x + 15, zIndex: 1000, }} > {tooltip.content} </div> )}
+            <div className="p-4 sm:p-6 flex-shrink-0 border-b">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 items-end">
+                <div className="md:col-span-2 flex flex-wrap items-end gap-x-4 gap-y-2">
+                  <div className="flex-grow min-w-[300px]">
+                    <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-1">{t('projectNameLabel')}</label>
+                    <input type="text" id="projectName" value={projectName} onChange={e => setProjectName(e.target.value)} onFocus={handleInputFocus} placeholder={t('projectNamePlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-base font-semibold focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" />
+                  </div>
+                  <div className="relative w-36 flex-shrink-0">
+                    <label htmlFor="creationDate" className="block text-sm font-medium text-gray-700 mb-1">{t('creationDate')}</label>
+                    <div className="relative">
+                      <input type="text" id="creationDate" value={creationDate} onChange={e => setCreationDate(e.target.value)} onFocus={handleInputFocus} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" />
+                      <button data-calendar-toggle onClick={(e) => openCalendar(e, 'creationDate')} className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600 transition-colors" aria-label={t('openCalendar')} > <CalendarIcon className="w-5 h-5" /> </button>
+                    </div>
+                    {activeCalendar?.type === 'creationDate' && ( <Calendar initialDate={creationDate} onSelectDate={(date) => { setCreationDate(date); setActiveCalendar(null); }} onClose={() => setActiveCalendar(null)} showToday={true} position={activeCalendar.position} /> )}
+                  </div>
+                  <div className="w-36 flex-shrink-0">
+                    <label htmlFor="creatorName" className="block text-sm font-medium text-gray-700 mb-1">{t('creator')}</label>
+                    <input type="text" id="creatorName" value={creatorName} onChange={e => setCreatorName(e.target.value)} onFocus={handleInputFocus} placeholder={t('creator')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" />
+                  </div>
+                </div>
+                <div className="relative">
+                  <label htmlFor="projectStart" className="block text-sm font-medium text-gray-700 mb-1">{t('projectStartDate')}</label>
+                  <div className="relative">
+                    <input type="text" id="projectStart" value={projectStart} onChange={e => setProjectStart(e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" />
+                    <button data-calendar-toggle onClick={(e) => openCalendar(e, 'projectStart')} className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600 transition-colors" aria-label={t('openCalendar')} > <CalendarIcon className="w-5 h-5" /> </button>
+                  </div>
+                  {activeCalendar?.type === 'projectStart' && ( <Calendar initialDate={projectStart} onSelectDate={(date) => { setProjectStart(date); setActiveCalendar(null); }} onClose={() => setActiveCalendar(null)} position={activeCalendar.position} /> )}
+                </div>
+                <div className="relative">
+                  <label htmlFor="projectEnd" className="block text-sm font-medium text-gray-700 mb-1">{t('projectEndDate')}</label>
+                  <div className="relative">
+                    <input type="text" id="projectEnd" value={projectEnd} onChange={e => setProjectEnd(e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" />
+                    <button data-calendar-toggle onClick={(e) => openCalendar(e, 'projectEnd')} className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600 transition-colors" aria-label={t('openCalendar')} > <CalendarIcon className="w-5 h-5" /> </button>
+                  </div>
+                  {activeCalendar?.type === 'projectEnd' && ( <Calendar initialDate={projectEnd} onSelectDate={(date) => { setProjectEnd(date); setActiveCalendar(null); }} onClose={() => setActiveCalendar(null)} position={activeCalendar.position} /> )}
+                </div>
+              </div>
+            </div>
+            <div className="relative overflow-auto flex-grow">
+              <div ref={ganttGridRef} className="gantt-grid min-w-[1200px] grid relative" style={{ gridTemplateColumns: `auto 1fr`, gridTemplateRows: `auto repeat(${tasks.length}, ${rowHeight}px)`, }} >
+                <div ref={taskDetailsHeaderRef} className="sticky top-0 left-0 bg-slate-100 p-2 border-b border-r border-gray-200 font-semibold text-slate-600 text-sm flex items-center z-30">
+                  <div className="flex items-center w-full gap-1">
+                    <div className="w-6 flex-shrink-0" />
+                    <div className="flex-grow min-w-0 p-1">{t('taskDetails')}</div>
+                    {columnVisibility.assignee && <div className="w-24 flex-shrink-0 p-1 text-xs text-center">{t('assignee')}</div>}
+                    {columnVisibility.startDate && <div className="w-24 flex-shrink-0 p-1 text-xs text-center">{t('startDate')}</div>}
+                    {columnVisibility.endDate && <div className="w-24 flex-shrink-0 p-1 text-xs text-center">{t('endDate')}</div>}
+                    {columnVisibility.duration && <div className="w-16 flex-shrink-0 p-1 text-xs text-center">{t('duration')}</div>}
+                    {columnVisibility.progress && <div className="w-20 flex-shrink-0 p-1 text-xs text-center">{t('progress')}</div>}
+                    {columnVisibility.manHours && ( <div className="w-20 flex-shrink-0 p-1 text-xs text-center"> <div className="flex flex-col items-center justify-center -space-y-1"> <span>{t('manHours')}</span> <span className="text-[10px] text-slate-500 font-normal"> ({t('total')}: {totalManHours.toLocaleString(undefined, { maximumFractionDigits: 1 })}) </span> </div> </div> )}
+                    <div className="w-16 flex-shrink-0 flex items-center justify-end"> <button onClick={onDeleteAllTasks} className="text-gray-400 hover:text-red-500 p-1 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title={t('deleteAllTasks')} disabled={tasks.length === 0} > <TrashIcon /> </button> </div>
+                  </div>
+                </div>
+                <div className="sticky top-0 z-10 bg-slate-50 border-b border-gray-200" style={{ gridColumn: `2 / span 1`, }} ref={timelineHeaderRef} >
+                  <div className="grid" style={{ gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` }}>
+                    {monthHeaders.map((month, index) => ( <div key={index} className="text-center font-semibold text-slate-600 text-sm py-1 border-r border-gray-400" style={{ gridColumn: `span ${month.days}` }}> {month.formatted} </div> ))}
+                  </div>
+                  <div className="grid" style={{ gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` }}>
+                    {dateHeaders.map(({ date, span, isLastDayOfMonth }, index) => {
+                      const dayOfWeek = date.toLocaleString(language === 'ja' ? 'ja-JP' : 'en-US', { weekday: 'short', timeZone: 'UTC' });
+                      const day = date.getUTCDay(); const isHoliday = holidays.has(day);
+                      let dayColorClass = 'text-slate-500'; if (day === 0) { dayColorClass = 'text-red-600'; } else if (day === 6) { dayColorClass = 'text-blue-600'; }
+                      let borderClass = 'border-gray-200'; if (isLastDayOfMonth) { borderClass = 'border-gray-400'; } else if (span > 1) { borderClass = 'border-gray-300'; }
+                      const containerAlignmentClass = span === 1 ? 'justify-center' : 'justify-start pl-1'; const textAlignmentClass = span === 1 ? 'items-center' : 'items-start';
+                      return ( <div key={index} className={`text-xs border-r ${borderClass} flex ${containerAlignmentClass} items-center h-full ${isHoliday ? 'bg-red-50' : 'bg-slate-50'} ${dayColorClass} overflow-hidden`} style={{ gridColumn: `span ${span}` }} > <div className={`flex flex-col ${textAlignmentClass} justify-center h-full`}> <span className="whitespace-nowrap leading-none">{date.getUTCDate()}</span> <span className="text-[10px] leading-none whitespace-nowrap">{dayOfWeek}</span> </div> </div> );
+                    })}
+                  </div>
+                </div>
+                {typeof dropIndex === 'number' && reorderState && ( <div className="h-0.5 bg-blue-500 pointer-events-none absolute w-full z-40" style={{ top: (timelineHeaderRef.current?.offsetHeight || 0) + (tasks.findIndex(t => t.id === reorderState.draggedTaskId) < dropIndex ? dropIndex -1 : dropIndex) * rowHeight - 2, left: 0, }} /> )}
+                {tasks.map((task, index) => {
+                  const isDragging = reorderState?.draggedTaskId === task.id;
+                  return (
+                  <React.Fragment key={task.id}>
+                    <div ref={(el) => { taskRowRefs.current[task.id] = el; }} className={`sticky left-0 bg-white border-b border-r border-gray-200 z-20 flex items-center p-2 gap-1 transition-opacity ${isDragging ? 'opacity-50' : ''}`} style={{ height: `${rowHeight}px`, gridRow: index + 2, gridColumn: 1, zIndex: activeCalendar?.taskId === task.id ? 41 : 20, }} >
+                        <button onMouseDown={(e) => handleReorderStart(e, task.id)} className="p-1 text-gray-400 hover:bg-gray-200 rounded-md" title={t('reorderTask')} > <GripVerticalIcon className="w-5 h-5 cursor-grab active:cursor-grabbing"/> </button>
+                        <input type="text" value={task.name} onChange={e => onTaskChange(task.id, 'name', e.target.value)} onFocus={handleInputFocus} placeholder={t('taskNamePlaceholder')} className="flex-grow min-w-0 p-1 border-none focus:ring-0 text-sm"/>
+                        {columnVisibility.assignee && <div className="w-24 flex-shrink-0"> <input type="text" value={task.assignee || ''} onChange={e => onTaskChange(task.id, 'assignee', e.target.value)} onFocus={handleInputFocus} placeholder={t('assignee')} className="w-full p-1 border-none focus:ring-0 text-xs" /> </div>}
+                        {columnVisibility.startDate && <div className="relative w-24 flex-shrink-0">
+                            <input type="text" value={task.startDate} onChange={e => onTaskChange(task.id, 'startDate', e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full p-1 border-none focus:ring-0 text-xs pr-6"/>
+                            <button data-calendar-toggle onClick={(e) => openCalendar(e, 'taskStartDate', task.id)} className="absolute inset-y-0 right-0 flex items-center pr-1 text-gray-400 hover:text-indigo-600" aria-label={t('openCalendar')} > <CalendarIcon className="w-4 h-4"/> </button>
+                             {activeCalendar?.type === 'taskStartDate' && activeCalendar?.taskId === task.id && ( <Calendar initialDate={task.startDate} taskStartDate={task.startDate} taskEndDate={task.endDate} minDate={projectStart} maxDate={task.endDate || projectEnd} onSelectDate={(date) => { onTaskChange(task.id, 'startDate', date); setActiveCalendar(null); }} onClose={() => setActiveCalendar(null)} position={activeCalendar.position} /> )}
+                        </div>}
+                        {columnVisibility.endDate && <div className="relative w-24 flex-shrink-0">
+                            <input type="text" value={task.endDate} onChange={e => onTaskChange(task.id, 'endDate', e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full p-1 border-none focus:ring-0 text-xs pr-6"/>
+                            <button data-calendar-toggle onClick={(e) => openCalendar(e, 'taskEndDate', task.id)} className="absolute inset-y-0 right-0 flex items-center pr-1 text-gray-400 hover:text-indigo-600" aria-label={t('openCalendar')} > <CalendarIcon className="w-4 h-4"/> </button>
+                            {activeCalendar?.type === 'taskEndDate' && activeCalendar?.taskId === task.id && ( <Calendar initialDate={task.endDate} taskStartDate={task.startDate} taskEndDate={task.endDate} minDate={task.startDate || projectStart} maxDate={projectEnd} onSelectDate={(date) => { onTaskChange(task.id, 'endDate', date); setActiveCalendar(null); }} onClose={() => setActiveCalendar(null)} position={activeCalendar.position} /> )}
+                        </div>}
+                        {columnVisibility.duration && <div className="w-16 flex-shrink-0"> <input type="number" value={getTaskDuration(task.startDate, task.endDate) || ''} onChange={e => onDurationChange(task, e.target.value)} onFocus={handleInputFocus} className="w-full p-1 border-none focus:ring-0 text-xs text-center" placeholder="-" min="1" /> </div>}
+                        {columnVisibility.progress && <div className="w-20 flex-shrink-0 relative"> <input type="number" value={task.progress} onChange={e => onProgressChange(task.id, e.target.value)} onFocus={handleInputFocus} className="w-full p-1 border-none focus:ring-0 text-xs text-center pr-4" min="0" max="100" /> <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span> </div>}
+                        {columnVisibility.manHours && <div className="w-20 flex-shrink-0"> <input type="number" value={task.manHours ?? ''} onChange={e => onManHoursChange(task.id, e.target.value)} onFocus={handleInputFocus} className="w-full p-1 border-none focus:ring-0 text-xs text-center" placeholder="-" min="0" /> </div>}
+                        <div className="w-16 flex-shrink-0 flex items-center justify-end">
+                          <button onClick={() => onDuplicateTask(task.id)} className="text-gray-400 hover:text-indigo-500 p-1 rounded-full transition-colors" title={t('duplicateTask')} > <DuplicateIcon className="w-5 h-5" /> </button>
+                          <button onClick={() => onDeleteTask(task.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full transition-colors"> <TrashIcon /> </button>
+                        </div>
+                    </div>
+                    <div className={`relative border-b transition-opacity z-0 ${isDragging ? 'opacity-50' : ''}`} style={{ gridRow: index + 2, gridColumn: `2 / span 1`, }} data-task-row-id={task.id} onMouseDown={(e) => { if (!task.startDate && !task.endDate) { handleMouseDown(e, task.id); } }} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} >
+                        <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` }}>
+                            {dateArray.map((date, index) => {
+                                const isHoliday = holidays.has(date.getUTCDay()); const nextDay = addDaysUTC(date, 1); const isLastDayOfMonth = nextDay.getUTCDate() === 1;
+                                let interval = 1; if (dayWidth < 24) interval = 2; if (dayWidth < 18) interval = 3; if (dayWidth < 12) interval = 7;
+                                const isGroupSeparator = interval > 1 && (index + 1) % interval === 0;
+                                let borderClass = 'border-gray-100'; if (isLastDayOfMonth) { borderClass = 'border-gray-400'; } else if (isGroupSeparator) { borderClass = 'border-gray-300'; }
+                                return <div key={index} className={`h-full border-r ${borderClass} ${isHoliday ? 'bg-red-50' : ''}`}></div>;
+                            })}
+                        </div>
+                        <div className="absolute inset-0 grid items-center" style={{ gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` }}>
+                           {(() => {
+                              const taskStart = parseUTCDateString(task.startDate); const taskEnd = parseUTCDateString(task.endDate);
+                              if (!taskStart || !taskEnd || taskEnd < taskStart) { return null; }
+                              const totalWorkingDays = getTaskDuration(task.startDate, task.endDate);
+                              if (totalWorkingDays === 0) return null;
+                              let completedWorkingDays = totalWorkingDays * (task.progress / 100);
+                              const lightningSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M11.933 3.339a.75.75 0 01.328 1.309l-6 7.5a.75.75 0 01-1.261-.548l2.25-9.75a.75.75 0 011.355-.26l2.328 1.75Z" clip-rule="evenodd" /><path d="M4.583 8.883c.31.043.614.12.906.224l-2.25 9.75a.75.75 0 01-1.355.26L.182 17.367a.75.75 0 01.26-1.025l4.14-1.453Z" /><path d="M12.75 11.25a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5h-4.5a.75.75 0 01-.75-.75Z" /></svg>`;
+                              const lightningDataUrl = `url("data:image/svg+xml;base64,${btoa(lightningSvg.replace('<svg ', `<svg fill='rgba(31, 41, 55, 0.4)' `))}")`;
+                              const totalDurationDays = (taskEnd.getTime() - taskStart.getTime()) / (1000 * 3600 * 24) + 1;
+                              if (totalDurationDays <= 0) return null;
+                              const segments = getTaskSegments(task);
+                              const interactionLayerStyle = { color: textColor };
+                              if (segments.length > 0 && totalDurationDays > 0) {
+                                  const visualStartDate = segments[0].startDate;
+                                  const visualEndDate = segments[segments.length - 1].endDate;
+                                  const startOffsetDays = (visualStartDate.getTime() - taskStart.getTime()) / (1000 * 3600 * 24);
+                                  const endOffsetDays = (taskEnd.getTime() - visualEndDate.getTime()) / (1000 * 3600 * 24);
+                                  interactionLayerStyle.position = 'absolute';
+                                  interactionLayerStyle.top = '0';
+                                  interactionLayerStyle.bottom = '0';
+                                  interactionLayerStyle.left = `${(startOffsetDays / totalDurationDays) * 100}%`;
+                                  interactionLayerStyle.right = `${(endOffsetDays / totalDurationDays) * 100}%`;
+                              } else {
+                                  interactionLayerStyle.display = 'none';
+                              }
+                              return (
+                                  <div className="relative h-8" style={{ ...getGridPosition(taskStart, taskEnd) }} >
+                                      <div className="absolute inset-0">
+                                          {segments.map((segment, segIndex) => {
+                                              const segmentWorkingDays = calculateWorkingDays(segment.startDate, segment.endDate, holidays);
+                                              if (segmentWorkingDays === 0) return null;
+                                              const progressDaysInSegment = Math.max(0, Math.min(segmentWorkingDays, completedWorkingDays));
+                                              const progressWidthPercent = (progressDaysInSegment / segmentWorkingDays) * 100;
+                                              completedWorkingDays -= progressDaysInSegment;
+                                              const segmentStartOffsetDays = (segment.startDate.getTime() - taskStart.getTime()) / (1000 * 3600 * 24);
+                                              const segmentDurationDays = (segment.endDate.getTime() - segment.startDate.getTime()) / (1000 * 3600 * 24) + 1;
+                                              const left = (segmentStartOffsetDays / totalDurationDays) * 100;
+                                              const width = (segmentDurationDays / totalDurationDays) * 100;
+                                              return (
+                                                  <div key={`segment-${segIndex}`} className="absolute top-0 h-full" style={{ left: `${left}%`, width: `${width}%` }} >
+                                                      <div className="w-full h-full relative" style={{ backgroundColor: baseColor }}>
+                                                          <div className="absolute top-0 left-0 h-full pointer-events-none" style={{ width: `${progressWidthPercent}%`, backgroundColor: progressColor, backgroundImage: lightningDataUrl, backgroundSize: '16px', }} />
+                                                      </div>
+                                                  </div>
+                                              );
+                                          })}
+                                      </div>
+                                      <div className="group/bar cursor-move px-3 text-sm font-medium flex items-center" style={interactionLayerStyle} onMouseDown={(e) => handleDragStart(e, task, 'move')} >
+                                          <span className="whitespace-nowrap">{task.name}</span>
+                                          <div className="absolute left-0 top-0 h-full w-2 cursor-ew-resize" onMouseDown={(e) => handleDragStart(e, task, 'resize-start')} />
+                                          <div className="absolute right-0 top-0 h-full w-2 cursor-ew-resize" onMouseDown={(e) => handleDragStart(e, task, 'resize-end')} />
+                                      </div>
+                                  </div>
+                              );
+                           })()}
+                           {dragPreview && dragPreview.taskId === task.id && ( <div className="h-8 bg-indigo-300 opacity-70" style={getGridPosition( parseUTCDateString(dragPreview.start > dragPreview.end ? dragPreview.end : dragPreview.start), parseUTCDateString(dragPreview.start > dragPreview.end ? dragPreview.start : dragPreview.end), )} /> )}
+                        </div>
+                    </div>
+                  </React.Fragment>
+                )})}
+                {progressLinePath && ( <div className="absolute top-0 left-0 pointer-events-none z-35" style={{ height: totalContentHeight, width: totalGridWidth ? `${totalGridWidth}px` : '100%' }}> <svg width={totalGridWidth || '100%'} height="100%"> <path d={progressLinePath} stroke={progressLineColor} strokeWidth="2" fill="none" strokeDasharray="4 4" /> </svg> </div> )}
+              </div>
+            </div>
+            <button onClick={onAddTask} title={t('addTask')} className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all transform hover:scale-110" > <PlusIcon className="w-7 h-7" /> </button>
+          </div>
+        );
+      };
+
+      // --- from App.tsx ---
+      const App = () => {
+        const { language, setLanguage } = useLanguage();
+        const t = React.useCallback((key) => { return translations[key][language]; }, [language]);
+        const [isSettingsModalOpen, setIsSettingsModalOpen] = React.useState(false);
+        const [confirmModalState, setConfirmModalState] = React.useState({ isOpen: false, title: '', message: '', onConfirm: () => {}, });
+        const [holidays, setHolidays] = React.useState(() => new Set([0, 6]));
+        const [columnVisibility, setColumnVisibility] = React.useState({ assignee: true, startDate: false, endDate: false, duration: true, progress: true, manHours: false, });
+        const [zoomIndex, setZoomIndex] = React.useState(3);
+        const [progressLineDate, setProgressLineDate] = React.useState(null);
+        const [isProgressLineCalendarOpen, setIsProgressLineCalendarOpen] = React.useState(false);
+        const importFileRef = React.useRef(null);
+        const [rowHeight, setRowHeight] = React.useState(40);
+        const [projectName, setProjectName] = React.useState(() => translations.untitledProject.ja);
+        const getInitialStartDate = () => { const now = new Date(); const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())); return formatDateUTC(todayUTC); };
+        const getInitialEndDate = () => { const now = new Date(); const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())); const futureDate = addDaysUTC(todayUTC, 60); return formatDateUTC(futureDate); };
+        const [projectStart, setProjectStart] = React.useState(getInitialStartDate());
+        const [projectEnd, setProjectEnd] = React.useState(getInitialEndDate());
+        const [creationDate, setCreationDate] = React.useState(getInitialStartDate());
+        const [creatorName, setCreatorName] = React.useState('');
+        const INITIAL_COLORS = { base: '#fef08a', progress: '#bae6fd', text: '#000000', progressLine: '#ff0000', };
+        const [baseColor, setBaseColor] = React.useState(INITIAL_COLORS.base);
+        const [progressColor, setProgressColor] = React.useState(INITIAL_COLORS.progress);
+        const [textColor, setTextColor] = React.useState(INITIAL_COLORS.text);
+        const [progressLineColor, setProgressLineColor] = React.useState(INITIAL_COLORS.progressLine);
+        const [tasks, setTasks] = React.useState(() => {
+          const initialT = (key) => translations[key]['ja'];
+          const now = new Date(); const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+          const task1Start = todayUTC; const task1End = addDaysUTC(task1Start, 4); 
+          const task2Start = addDaysUTC(task1End, 1); const task2End = addDaysUTC(task2Start, 9);
+          const task3Start = addDaysUTC(task2End, 1); const task3End = addDaysUTC(task3Start, 19);
+          const task4Start = addDaysUTC(task3Start, 5); const task4End = addDaysUTC(task4Start, 14);
+          const task5Start = addDaysUTC(task3Start, 7); const task5End = addDaysUTC(task5Start, 17);
+          const task6Start = addDaysUTC(task4End, -3); const task6End = addDaysUTC(task6Start, 19);
+          const task7Start = addDaysUTC(task4End, 1); const task7End = addDaysUTC(task7Start, 9);
+          const task8Start = addDaysUTC(task6End, 1); const task8End = addDaysUTC(task8Start, 4);
+          return [
+              { id: '1', name: initialT('temporaryWorks'), assignee: '', startDate: formatDateUTC(task1Start), endDate: formatDateUTC(task1End), progress: 0, manHours: 20 },
+              { id: '2', name: initialT('earthworks'), assignee: '', startDate: formatDateUTC(task2Start), endDate: formatDateUTC(task2End), progress: 0, manHours: 80 },
+              { id: '3', name: initialT('structuralWork'), assignee: '', startDate: formatDateUTC(task3Start), endDate: formatDateUTC(task3End), progress: 0, manHours: 200 },
+              { id: '4', name: initialT('exteriorWork'), assignee: '', startDate: formatDateUTC(task4Start), endDate: formatDateUTC(task4End), progress: 0, manHours: 150 },
+              { id: '5', name: initialT('mepWorks'), assignee: '', startDate: formatDateUTC(task5Start), endDate: formatDateUTC(task5End), progress: 0, manHours: 180 },
+              { id: '6', name: initialT('interiorWork'), assignee: '', startDate: formatDateUTC(task6Start), endDate: formatDateUTC(task6End), progress: 0, manHours: 200 },
+              { id: '7', name: initialT('landscaping'), assignee: '', startDate: formatDateUTC(task7Start), endDate: formatDateUTC(task7End), progress: 0, manHours: 50 },
+              { id: '8', name: initialT('completionHandover'), assignee: '', startDate: formatDateUTC(task8Start), endDate: formatDateUTC(task8End), progress: 0, manHours: 10 },
+          ];
+        });
+        const handleZoomIn = () => setZoomIndex(prev => Math.min(prev + 1, 5));
+        const handleZoomOut = () => setZoomIndex(prev => Math.max(prev - 1, 0));
+        const toggleLanguage = () => { setLanguage(lang => (lang === 'ja' ? 'en' : 'ja')); };
+        const handleResetColors = () => { setBaseColor(INITIAL_COLORS.base); setProgressColor(INITIAL_COLORS.progress); setTextColor(INITIAL_COLORS.text); setProgressLineColor(INITIAL_COLORS.progressLine); };
+        const handleDeleteAllTasks = () => {
+          if (tasks.length === 0) return;
+          setConfirmModalState({ isOpen: true, title: t('deleteAllTasks'), message: t('confirmDeleteAllTasks'), onConfirm: () => { setTasks([]); setConfirmModalState({ isOpen: false, title: '', message: '', onConfirm: () => {} }); }, });
+        };
+        const handleAddTask = () => { const newId = Date.now().toString(); setTasks(prev => [...prev, { id: newId, name: `${t('newTaskName')} ${prev.length + 1}`, assignee: '', startDate: '', endDate: '', progress: 0, manHours: 0 }]); };
+        const handleDeleteTask = (id) => { setTasks(prev => prev.filter(task => task.id !== id)); };
+        const handleDuplicateTask = (taskId) => {
+          setTasks(currentTasks => {
+            const taskIndex = currentTasks.findIndex(t => t.id === taskId); if (taskIndex === -1) { return currentTasks; }
+            const originalTask = currentTasks[taskIndex]; const newTask = { ...originalTask, id: Date.now().toString(), name: `${originalTask.name}${t('copySuffix')}`, };
+            const newTasks = [...currentTasks]; newTasks.splice(taskIndex + 1, 0, newTask); return newTasks;
+          });
+        };
+        const handleTaskChange = (id, field, value) => { setTasks(prev => prev.map(task => task.id === id ? { ...task, [field]: value } : task)); };
+        const handleDurationChange = (task, newDurationStr) => {
+          const newDuration = parseInt(newDurationStr, 10); if (isNaN(newDuration) || newDuration < 1) return;
+          const startDate = parseUTCDateString(task.startDate);
+          if (startDate) { const newEndDate = addWorkingDays(startDate, newDuration, holidays); handleTaskChange(task.id, 'endDate', formatDateUTC(newEndDate)); }
+        };
+        const handleProgressChange = (taskId, newProgressStr) => {
+          let newProgress = parseInt(newProgressStr, 10); if (isNaN(newProgress)) { newProgress = 0; }
+          const clampedProgress = Math.max(0, Math.min(100, newProgress)); handleTaskChange(taskId, 'progress', clampedProgress);
+        };
+        const handleManHoursChange = (taskId, newManHoursStr) => {
+          let newManHours = parseFloat(newManHoursStr); if (isNaN(newManHours)) { handleTaskChange(taskId, 'manHours', undefined); return; }
+          const clampedManHours = Math.max(0, newManHours); handleTaskChange(taskId, 'manHours', clampedManHours);
+        };
+        const handleTaskDateSet = (taskId, startDateStr, endDateStr) => {
+            const d1 = parseUTCDateString(startDateStr); const d2 = parseUTCDateString(endDateStr);
+            if (d1 && d2) {
+                const finalStartDate = d1.getTime() < d2.getTime() ? startDateStr : endDateStr; const finalEndDate = d1.getTime() < d2.getTime() ? endDateStr : startDateStr;
+                setTasks(prev => prev.map(task => task.id === taskId ? { ...task, startDate: finalStartDate, endDate: finalEndDate } : task ));
+            }
+        };
+        const handleTaskDragUpdate = ( taskId, actionType, initialStartDate, initialEndDate, dayOffset ) => {
+            const pStart = parseUTCDateString(projectStart); const pEnd = parseUTCDateString(projectEnd); if (!pStart || !pEnd) return;
+            setTasks(currentTasks =>
+              currentTasks.map(task => {
+                if (task.id === taskId) {
+                  let newStartDate; let newEndDate;
+                  switch (actionType) {
+                    case 'move': {
+                      const durationInWorkingDays = calculateWorkingDays(initialStartDate, initialEndDate, holidays) || 1;
+                      let potentialStartDate = addDaysUTC(initialStartDate, dayOffset);
+                      if (potentialStartDate.getTime() < pStart.getTime()) { potentialStartDate = pStart; }
+                      let potentialEndDate = addWorkingDays(potentialStartDate, durationInWorkingDays, holidays);
+                      if (potentialEndDate.getTime() > pEnd.getTime()) {
+                        potentialEndDate = pEnd;
+                        potentialStartDate = addOrSubtractWorkingDays(potentialEndDate, -(durationInWorkingDays - 1), holidays);
+                        if (potentialStartDate.getTime() < pStart.getTime()) { potentialStartDate = pStart; }
+                      }
+                      newStartDate = potentialStartDate; newEndDate = addWorkingDays(newStartDate, durationInWorkingDays, holidays);
+                      if (newEndDate.getTime() > pEnd.getTime()) newEndDate = pEnd; if (newEndDate < newStartDate) newEndDate = newStartDate;
+                      break;
+                    }
+                    case 'resize-start': {
+                      newStartDate = addDaysUTC(initialStartDate, dayOffset); newEndDate = initialEndDate;
+                      if (newStartDate.getTime() < pStart.getTime()) newStartDate = pStart;
+                      if (newStartDate.getTime() > newEndDate.getTime()) [newStartDate, newEndDate] = [newEndDate, newStartDate];
+                      break;
+                    }
+                    case 'resize-end': {
+                      newStartDate = initialStartDate; newEndDate = addDaysUTC(initialEndDate, dayOffset);
+                      if (newEndDate.getTime() > pEnd.getTime()) newEndDate = pEnd;
+                      if (newEndDate.getTime() < newStartDate.getTime()) [newEndDate, newStartDate] = [newStartDate, newEndDate];
+                      break;
+                    }
+                  }
+                  return { ...task, startDate: formatDateUTC(newStartDate), endDate: formatDateUTC(newEndDate) };
+                }
+                return task;
+              })
+            );
+        };
+        const handleTaskReorder = (draggedTaskId, dropIndex) => {
+            setTasks(currentTasks => {
+                const newTasks = [...currentTasks]; const draggedTask = newTasks.find(t => t.id === draggedTaskId);
+                if (!draggedTask) return currentTasks;
+                const draggedIndex = newTasks.indexOf(draggedTask); newTasks.splice(draggedIndex, 1);
+                const adjustedDropIndex = dropIndex > draggedIndex ? dropIndex - 1 : dropIndex;
+                newTasks.splice(adjustedDropIndex, 0, draggedTask);
+                return newTasks;
+            });
+        };
+        React.useEffect(() => {
+          if (!isProgressLineCalendarOpen) return;
+          const handleClickOutside = (event) => { if (!(event.target).closest('[data-calendar-popover]') && !(event.target).closest('[data-calendar-toggle]')) { setIsProgressLineCalendarOpen(false); } };
+          document.addEventListener('mousedown', handleClickOutside);
+          return () => { document.removeEventListener('mousedown', handleClickOutside); };
+        }, [isProgressLineCalendarOpen]);
+        const handleExport = () => {
+          const dataToSave = { projectName, projectStart, projectEnd, creationDate, creatorName, tasks, settings: { holidays: Array.from(holidays), columnVisibility, baseColor, progressColor, textColor, rowHeight, progressLineColor, } };
+          const jsonString = JSON.stringify(dataToSave, null, 2);
+          const blob = new Blob([jsonString], { type: 'application/json' }); const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url;
+          const today = new Date(); const year = today.getFullYear(); const month = (today.getMonth() + 1).toString().padStart(2, '0'); const day = today.getDate().toString().padStart(2, '0'); const formattedDate = `${year}-${month}-${day}`;
+          a.download = `Schedule_${formattedDate}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        };
+        const handleImportClick = () => { importFileRef.current?.click(); };
+        const handleFileChange = (event) => {
+            const file = event.target.files?.[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const text = e.target?.result; if (typeof text !== 'string') throw new Error("File content is not a string");
+                    const data = JSON.parse(text);
+                    if (!data.projectName || !data.projectStart || !data.projectEnd || !Array.isArray(data.tasks)) { throw new Error("Invalid file format"); }
+                    setProjectName(data.projectName); setProjectStart(data.projectStart); setProjectEnd(data.projectEnd);
+                    if (data.creationDate) setCreationDate(data.creationDate); if (data.creatorName) setCreatorName(data.creatorName); setTasks(data.tasks);
+                    if (data.settings) {
+                      if (data.settings.holidays) { setHolidays(new Set(data.settings.holidays)); }
+                      if (data.settings.columnVisibility) { setColumnVisibility(prev => ({...prev, ...data.settings.columnVisibility})); }
+                      if (data.settings.baseColor) { setBaseColor(data.settings.baseColor); }
+                      if (data.settings.progressColor) { setProgressColor(data.settings.progressColor); }
+                      if (data.settings.textColor) { setTextColor(data.settings.textColor); }
+                      if (data.settings.rowHeight) { setRowHeight(data.settings.rowHeight); }
+                      if (data.settings.progressLineColor) { setProgressLineColor(data.settings.progressLineColor); }
+                    }
+                } catch (error) { console.error("Failed to import file:", error); alert(t('importError')); }
+            };
+            reader.readAsText(file); event.target.value = '';
+        };
+        return (
+          <div className="min-h-screen bg-gray-100 text-gray-800 font-sans">
+            {isSettingsModalOpen && ( <SettingsModal onClose={() => setIsSettingsModalOpen(false)} holidays={holidays} setHolidays={setHolidays} columnVisibility={columnVisibility} setColumnVisibility={setColumnVisibility} baseColor={baseColor} setBaseColor={setBaseColor} progressColor={progressColor} setProgressColor={setProgressColor} textColor={textColor} setTextColor={setTextColor} progressLineColor={progressLineColor} setProgressLineColor={setProgressLineColor} rowHeight={rowHeight} setRowHeight={setRowHeight} onResetColors={handleResetColors} /> )}
+            {confirmModalState.isOpen && ( <ConfirmModal title={confirmModalState.title} message={confirmModalState.message} onConfirm={confirmModalState.onConfirm} onClose={() => setConfirmModalState({ isOpen: false, title: '', message: '', onConfirm: () => {} })} confirmText={t('delete')} cancelText={t('cancel')} /> )}
+            <header className="bg-white shadow-md sticky top-0 z-40">
+              <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                <div> <h1 className="text-2xl font-bold text-slate-700 tracking-tight"> {t('ganttChartMaker')} </h1> <p className="text-slate-500 mt-1">{t('appDescription')}</p> </div>
+                <div className="flex items-center space-x-2 sm:space-x-4">
+                  <div className="flex items-center justify-end space-x-2 p-1 sm:p-2 rounded-lg bg-slate-100 border border-slate-200">
+                      <button onClick={() => setIsSettingsModalOpen(true)} className="p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors" title={t('settings')} > <SettingsIcon className="w-5 h-5" /> </button>
+                      <div className="h-6 border-l border-gray-300"></div>
+                      <div className="relative">
+                          <button data-calendar-toggle onClick={() => setIsProgressLineCalendarOpen(prev => !prev)} className="p-2 rounded-full text-gray-500 hover:bg-gray-200 transition-colors" title={t('progressLine')} > <ProgressLineIcon className="w-5 h-5" /> </button>
+                          {isProgressLineCalendarOpen && ( <Calendar initialDate={progressLineDate || undefined} onSelectDate={(date) => { setProgressLineDate(date); setIsProgressLineCalendarOpen(false); }} onClose={() => setIsProgressLineCalendarOpen(false)} minDate={projectStart} maxDate={projectEnd} /> )}
+                      </div>
+                      {progressLineDate && ( <button onClick={() => setProgressLineDate(null)} className="p-1 rounded-full text-red-500 bg-red-100 hover:bg-red-200 transition-colors" title={t('clearProgressLine')} > <XIcon className="w-4 h-4" /> </button> )}
+                      <div className="h-6 border-l border-gray-300"></div>
+                      <button onClick={handleZoomOut} disabled={zoomIndex === 0} className="p-2 rounded-full text-gray-500 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" title={t('zoomOut')} > <ZoomOutIcon className="w-5 h-5" /> </button>
+                      <button onClick={handleZoomIn} disabled={zoomIndex === 5} className="p-2 rounded-full text-gray-500 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" title={t('zoomIn')} > <ZoomInIcon className="w-5 h-5" /> </button>
+                  </div>
+                  <div className="flex items-center justify-end space-x-2 p-1 sm:p-2 rounded-lg bg-slate-100 border border-slate-200">
+                      <button onClick={handleImportClick} className="p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors" title={t('importData')}> <UploadIcon className="w-5 h-5" /> </button>
+                      <input type="file" ref={importFileRef} onChange={handleFileChange} accept=".json, .gantt.json" className="hidden" />
+                      <div className="h-6 border-l border-gray-300"></div>
+                      <button onClick={handleExport} className="p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors" title={t('exportData')}> <DownloadIcon className="w-5 h-5" /> </button>
+                  </div>
+                  <button onClick={toggleLanguage} className="px-4 py-2 border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors" aria-label={`Switch to ${language === 'ja' ? 'English' : '日本語'}`} > {language === 'ja' ? 'English' : '日本語'} </button>
+                </div>
+              </div>
+            </header>
+            <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+              <GanttChart projectName={projectName} setProjectName={setProjectName} projectStart={projectStart} setProjectStart={setProjectStart} projectEnd={projectEnd} setProjectEnd={setProjectEnd} creationDate={creationDate} setCreationDate={setCreationDate} creatorName={creatorName} setCreatorName={setCreatorName} tasks={tasks} holidays={holidays} columnVisibility={columnVisibility} zoomIndex={zoomIndex} progressLineDate={progressLineDate} baseColor={baseColor} progressColor={progressColor} textColor={textColor} progressLineColor={progressLineColor} rowHeight={rowHeight} onDeleteAllTasks={handleDeleteAllTasks} onAddTask={handleAddTask} onDeleteTask={handleDeleteTask} onDuplicateTask={handleDuplicateTask} onTaskChange={handleTaskChange} onDurationChange={handleDurationChange} onProgressChange={handleProgressChange} onManHoursChange={handleManHoursChange} onTaskDateSet={handleTaskDateSet} onTaskDragUpdate={handleTaskDragUpdate} onTaskReorder={handleTaskReorder} />
+            </main>
+          </div>
+        );
+      };
+
+      // --- from index.tsx (mounting logic) ---
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error("Could not find root element to mount to");
+      }
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(
+        <React.StrictMode>
+          <LanguageProvider>
+            <App />
+          </LanguageProvider>
+        </React.StrictMode>
+      );
+    </script>
   </body>
 </html>
