@@ -1229,7 +1229,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
                                 {/* Foreground Interaction & Text Layer */}
                                 <div
                                     className="group/bar cursor-move px-3 text-sm font-medium flex items-center"
-                                    style={interactionLayerStyle}
+                                    style={{ ...interactionLayerStyle, touchAction: 'none' }}
                                     onMouseDown={(e) => handleDragStart(e, task, 'move')}
                                     onTouchStart={(e) => handleDragStart(e, task, 'move')}
                                 >
