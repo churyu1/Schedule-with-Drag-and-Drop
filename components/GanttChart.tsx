@@ -380,6 +380,9 @@ const GanttChart: React.FC<GanttChartProps> = ({
   }, [dateArray, dayWidth]);
 
  const handlePointerDownForCreate = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+      if (e.type.startsWith('touch')) {
+        e.preventDefault();
+      }
       const { clientX } = getReactEventCoords(e);
       const startDate = getDateFromX(clientX);
       if (startDate) {
@@ -466,6 +469,9 @@ const GanttChart: React.FC<GanttChartProps> = ({
   }, [dragPreview, onTaskDateSet]);
 
   const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent, task: Task, type: DragActionType) => {
+    if (e.type.startsWith('touch')) {
+        e.preventDefault();
+    }
     e.stopPropagation();
     const start = parseUTCDateString(task.startDate);
     const end = parseUTCDateString(task.endDate);
