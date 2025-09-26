@@ -1,5 +1,5 @@
 {
-  "name": "schedule-with-drag-and-drop",
+  "name": "ドラッグして工程表",
   "private": true,
   "version": "0.0.0",
   "type": "module",

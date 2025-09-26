@@ -18,6 +18,24 @@ import {
 
 const ZOOM_LEVELS = [8, 12, 18, 24, 40, 64];
 
+const getReactEventCoords = (e) => {
+    if ('touches' in e) {
+        return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+};
+
+const getNativeEventCoords = (e) => {
+    if (e.type.startsWith('touch')) {
+        const touch = e.touches[0] || e.changedTouches[0];
+        if (touch) {
+            return { clientX: touch.clientX, clientY: touch.clientY };
+        }
+    }
+    const mouseEvent = e;
+    return { clientX: mouseEvent.clientX, clientY: mouseEvent.clientY };
+};
+
 const GanttChart = ({
   projectName,
   setProjectName,
@@ -291,31 +309,36 @@ const GanttChart = ({
     return null;
   }, [dateArray, dayWidth]);
 
-  const handleMouseDown = useCallback((e, taskId) => {
-      const startDate = getDateFromX(e.clientX);
+  const handlePointerDownForCreate = useCallback((e) => {
+      const { clientX } = getReactEventCoords(e);
+      const startDate = getDateFromX(clientX);
       if (startDate) {
           if (holidays.has(startDate.getUTCDay())) {
             return;
           }
-          const startDateStr = formatDateUTC(startDate);
-          setDragPreview({ taskId, start: startDateStr, end: startDateStr });
+          const taskId = e.currentTarget.dataset.taskRowId;
+          if (taskId) {
+            const startDateStr = formatDateUTC(startDate);
+            setDragPreview({ taskId, start: startDateStr, end: startDateStr });
+          }
       }
       setTooltip(null);
   }, [getDateFromX, holidays]);
 
-  const handleMouseMove = useCallback((e) => {
+  const handlePointerMove = useCallback((e) => {
     const timelineRowCell = e.currentTarget;
+    const { clientX, clientY } = getReactEventCoords(e);
 
     if(dragPreview) {
-        const currentDate = getDateFromX(e.clientX);
+        if (e.type === 'touchmove') e.preventDefault();
+        const currentDate = getDateFromX(clientX);
         if (currentDate) {
             setDragPreview(prev => (prev ? { ...prev, end: formatDateUTC(currentDate) } : null));
         }
         return;
     }
 
-    if (dragAction || reorderState) {
-        timelineRowCell.style.cursor = '';
+    if (e.type.startsWith('touch') || dragAction || reorderState) {
         setTooltip(null);
         return;
     }
@@ -324,7 +347,7 @@ const GanttChart = ({
     const task = tasks.find(t => t.id === taskId);
 
     if (task && !task.startDate && !task.endDate) {
-        const dateUnderCursor = getDateFromX(e.clientX);
+        const dateUnderCursor = getDateFromX(clientX);
         const isHolidayUnderCursor = dateUnderCursor ? holidays.has(dateUnderCursor.getUTCDay()) : true;
 
         if (isHolidayUnderCursor) {
@@ -334,8 +357,8 @@ const GanttChart = ({
             timelineRowCell.style.cursor = 'crosshair';
             setTooltip({
                 visible: true,
-                x: e.clientX,
-                y: e.clientY,
+                x: clientX,
+                y: clientY,
                 content: t('dragToSetDuration'),
             });
         }
@@ -343,7 +366,7 @@ const GanttChart = ({
         timelineRowCell.style.cursor = 'default';
         setTooltip(null);
     }
-  }, [dragPreview, dragAction, reorderState, tasks, getDateFromX, holidays, t, setDragPreview]);
+  }, [dragPreview, dragAction, reorderState, tasks, getDateFromX, holidays, t]);
   
   const handleMouseLeave = useCallback((e) => {
     e.currentTarget.style.cursor = 'default';
@@ -353,15 +376,19 @@ const GanttChart = ({
   useEffect(() => {
     if (!dragPreview) return;
 
-    const handleMouseUpGlobal = () => {
+    const handlePointerUpGlobal = () => {
         if (dragPreview) {
             onTaskDateSet(dragPreview.taskId, dragPreview.start, dragPreview.end);
             setDragPreview(null);
         }
     };
 
-    window.addEventListener('mouseup', handleMouseUpGlobal);
-    return () => window.removeEventListener('mouseup', handleMouseUpGlobal);
+    window.addEventListener('mouseup', handlePointerUpGlobal);
+    window.addEventListener('touchend', handlePointerUpGlobal);
+    return () => {
+        window.removeEventListener('mouseup', handlePointerUpGlobal);
+        window.removeEventListener('touchend', handlePointerUpGlobal);
+    };
   }, [dragPreview, onTaskDateSet]);
 
   const handleDragStart = useCallback((e, task, type) => {
@@ -370,20 +397,29 @@ const GanttChart = ({
     const end = parseUTCDateString(task.endDate);
     if (!start || !end) return;
 
+    const { clientX } = getReactEventCoords(e);
+
     setDragAction({
       type,
       taskId: task.id,
-      initialX: e.clientX,
+      initialX: clientX,
       initialStartDate: start,
       initialEndDate: end,
     });
   }, []);
 
   const handleDragMove = useCallback((e) => {
+    if (e.type === 'touchmove') {
+        e.preventDefault();
+    }
     if (!dragAction) return;
     if (dayWidth <= 0) return;
 
-    const deltaX = e.clientX - dragAction.initialX;
+    const coords = getNativeEventCoords(e);
+    if (!coords) return;
+    const { clientX } = coords;
+
+    const deltaX = clientX - dragAction.initialX;
     const dayOffset = Math.round(deltaX / dayWidth);
 
     onTaskDragUpdate(
@@ -426,12 +462,16 @@ const GanttChart = ({
         document.body.style.cursor = getCursor(dragAction.type);
         document.body.style.userSelect = 'none';
         window.addEventListener('mousemove', handleDragMove);
+        window.addEventListener('touchmove', handleDragMove, { passive: false });
         window.addEventListener('mouseup', handleDragEnd);
+        window.addEventListener('touchend', handleDragEnd);
     }
 
     return () => {
         window.removeEventListener('mousemove', handleDragMove);
+        window.removeEventListener('touchmove', handleDragMove);
         window.removeEventListener('mouseup', handleDragEnd);
+        window.removeEventListener('touchend', handleDragEnd);
         if (document.body) {
            document.body.style.cursor = 'auto';
            document.body.style.userSelect = 'auto';
@@ -442,11 +482,19 @@ const GanttChart = ({
 
   const handleReorderStart = useCallback((e, taskId) => {
     e.preventDefault();
+    e.stopPropagation();
     setReorderState({ draggedTaskId: taskId, dropIndex: null });
   }, []);
 
   const handleReorderMove = useCallback((e) => {
+    if (e.type === 'touchmove') {
+        e.preventDefault();
+    }
     if (!reorderState) return;
+
+    const coords = getNativeEventCoords(e);
+    if (!coords) return;
+    const { clientY } = coords;
 
     const positions = tasks.map(task => {
         const el = taskRowRefs.current[task.id];
@@ -455,18 +503,18 @@ const GanttChart = ({
         return { id: task.id, top: rect.top, bottom: rect.bottom, mid: rect.top + rect.height / 2 };
     }).filter(p => p.top !== -1);
 
-    const target = positions.find(p => e.clientY >= p.top && e.clientY <= p.bottom);
+    const target = positions.find(p => clientY >= p.top && clientY <= p.bottom);
     let newDropIndex = null;
     if (target) {
         const targetIndex = tasks.findIndex(t => t.id === target.id);
-        newDropIndex = e.clientY < target.mid ? targetIndex : targetIndex + 1;
+        newDropIndex = clientY < target.mid ? targetIndex : targetIndex + 1;
     } else {
         const firstTaskRect = taskRowRefs.current[tasks[0]?.id]?.getBoundingClientRect();
-        if (firstTaskRect && e.clientY < firstTaskRect.top) {
+        if (firstTaskRect && clientY < firstTaskRect.top) {
             newDropIndex = 0;
         } else {
             const lastTaskRect = taskRowRefs.current[tasks[tasks.length-1]?.id]?.getBoundingClientRect();
-            if(lastTaskRect && e.clientY > lastTaskRect.bottom) {
+            if(lastTaskRect && clientY > lastTaskRect.bottom) {
                  newDropIndex = tasks.length;
             }
         }
@@ -487,11 +535,15 @@ const GanttChart = ({
         document.body.style.cursor = 'grabbing';
         document.body.style.userSelect = 'none';
         window.addEventListener('mousemove', handleReorderMove);
+        window.addEventListener('touchmove', handleReorderMove, { passive: false });
         window.addEventListener('mouseup', handleReorderEnd);
+        window.addEventListener('touchend', handleReorderEnd);
     }
     return () => {
         window.removeEventListener('mousemove', handleReorderMove);
+        window.removeEventListener('touchmove', handleReorderMove);
         window.removeEventListener('mouseup', handleReorderEnd);
+        window.removeEventListener('touchend', handleReorderEnd);
         if (document.body) {
            document.body.style.cursor = 'auto';
            document.body.style.userSelect = 'auto';
@@ -791,6 +843,7 @@ const GanttChart = ({
               },
                   React.createElement('button', {
                     onMouseDown: (e) => handleReorderStart(e, task.id),
+                    onTouchStart: (e) => handleReorderStart(e, task.id),
                     className: "p-1 text-gray-400 hover:bg-gray-200 rounded-md",
                     title: t('reorderTask')
                   }, React.createElement(GripVerticalIcon, { className: "w-5 h-5 cursor-grab active:cursor-grabbing"})),
@@ -903,10 +956,16 @@ const GanttChart = ({
                 'data-task-row-id': task.id,
                 onMouseDown: (e) => {
                   if (!task.startDate && !task.endDate) {
-                    handleMouseDown(e, task.id);
+                    handlePointerDownForCreate(e);
                   }
                 },
-                onMouseMove: handleMouseMove,
+                onTouchStart: (e) => {
+                    if (!task.startDate && !task.endDate) {
+                      handlePointerDownForCreate(e);
+                    }
+                },
+                onMouseMove: handlePointerMove,
+                onTouchMove: handlePointerMove,
                 onMouseLeave: handleMouseLeave
               },
                   React.createElement('div', { className: "absolute inset-0 grid", style: { gridTemplateColumns: `repeat(${dateArray.length}, ${dayWidth}px)` } },
@@ -1013,16 +1072,19 @@ const GanttChart = ({
                                 React.createElement('div', {
                                     className: "group/bar cursor-move px-3 text-sm font-medium flex items-center",
                                     style: interactionLayerStyle,
-                                    onMouseDown: (e) => handleDragStart(e, task, 'move')
+                                    onMouseDown: (e) => handleDragStart(e, task, 'move'),
+                                    onTouchStart: (e) => handleDragStart(e, task, 'move')
                                 },
                                     React.createElement('span', { className: "whitespace-nowrap" }, task.name),
                                     React.createElement('div', {
                                         className: "absolute left-0 top-0 h-full w-2 cursor-ew-resize",
-                                        onMouseDown: (e) => handleDragStart(e, task, 'resize-start')
+                                        onMouseDown: (e) => handleDragStart(e, task, 'resize-start'),
+                                        onTouchStart: (e) => handleDragStart(e, task, 'resize-start'),
                                     }),
                                     React.createElement('div', {
                                         className: "absolute right-0 top-0 h-full w-2 cursor-ew-resize",
-                                        onMouseDown: (e) => handleDragStart(e, task, 'resize-end')
+                                        onMouseDown: (e) => handleDragStart(e, task, 'resize-end'),
+                                        onTouchStart: (e) => handleDragStart(e, task, 'resize-end')
                                     })
                                 )
                             )
