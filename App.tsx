@@ -1,17 +1,18 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import GanttChart from './components/GanttChart.tsx';
-import { useLanguage } from './contexts/LanguageContext.tsx';
-import { translations, TranslationKey } from './lib/translations.ts';
-import SettingsIcon from './components/icons/SettingsIcon.tsx';
-import ZoomInIcon from './components/icons/ZoomInIcon.tsx';
-import ZoomOutIcon from './components/icons/ZoomOutIcon.tsx';
-import ProgressLineIcon from './components/icons/ProgressLineIcon.tsx';
-import XIcon from './components/icons/XIcon.tsx';
-import SettingsModal from './components/SettingsModal.tsx';
-import Calendar from './components/Calendar.tsx';
-import { Task } from './types.ts';
-import DownloadIcon from './components/icons/DownloadIcon.tsx';
-import UploadIcon from './components/icons/UploadIcon.tsx';
+import GanttChart from './components/GanttChart';
+import { useLanguage } from './contexts/LanguageContext';
+import { translations, TranslationKey } from './lib/translations';
+import SettingsIcon from './components/icons/SettingsIcon';
+import ZoomInIcon from './components/icons/ZoomInIcon';
+import ZoomOutIcon from './components/icons/ZoomOutIcon';
+import ProgressLineIcon from './components/icons/ProgressLineIcon';
+import XIcon from './components/icons/XIcon';
+import SettingsModal from './components/SettingsModal';
+import Calendar from './components/Calendar';
+import { Task } from './types';
+import DownloadIcon from './components/icons/DownloadIcon';
+import UploadIcon from './components/icons/UploadIcon';
 import {
     formatDateUTC,
     addDaysUTC,
@@ -19,8 +20,8 @@ import {
     addWorkingDays,
     addOrSubtractWorkingDays,
     calculateWorkingDays,
-} from './lib/dateUtils.ts';
-import ConfirmModal from './components/ConfirmModal.tsx';
+} from './lib/dateUtils';
+import ConfirmModal from './components/ConfirmModal';
 
 const ZOOM_LEVELS = [8, 12, 18, 24, 40, 64];
 
@@ -116,8 +117,6 @@ const App: React.FC = () => {
     setProgressLineColor(INITIAL_COLORS.progressLine);
   };
   
-  // --- Task Manipulation Logic ---
-
   const handleDeleteAllTasks = () => {
     if (tasks.length === 0) return;
     setConfirmModalState({
@@ -284,9 +283,6 @@ const App: React.FC = () => {
       });
   };
 
-  // --- End of Task Manipulation Logic ---
-
-
   useEffect(() => {
     if (!isProgressLineCalendarOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
@@ -352,7 +348,6 @@ const App: React.FC = () => {
               if (typeof text !== 'string') throw new Error("File content is not a string");
               const data = JSON.parse(text);
 
-              // Basic validation
               if (!data.projectName || !data.projectStart || !data.projectEnd || !Array.isArray(data.tasks)) {
                   throw new Error("Invalid file format");
               }
@@ -369,7 +364,6 @@ const App: React.FC = () => {
                     setHolidays(new Set(data.settings.holidays));
                 }
                 if (data.settings.columnVisibility) {
-                    // Merge to handle newly added columns gracefully
                     setColumnVisibility(prev => ({...prev, ...data.settings.columnVisibility}));
                 }
                 if (data.settings.baseColor) {
@@ -395,7 +389,7 @@ const App: React.FC = () => {
           }
       };
       reader.readAsText(file);
-      event.target.value = ''; // Reset input to allow re-importing the same file
+      event.target.value = '';
   };
 
   return (
