@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { Task } from '../types.ts';
 import PlusIcon from './icons/PlusIcon.tsx';
@@ -728,7 +729,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
   }, [tasks]);
 
   return (
-    <div className="bg-white rounded-lg shadow-lg flex flex-col max-h-[calc(100vh-16rem)] sm:max-h-[calc(100vh-14rem)]">
+    <div className="bg-white rounded-lg shadow-lg flex flex-col h-[calc(100vh-7rem)] overflow-hidden relative">
       {tooltip?.visible && (
         <div
             className="fixed bg-gray-800 text-white text-xs rounded py-1 px-2 pointer-events-none shadow-lg"

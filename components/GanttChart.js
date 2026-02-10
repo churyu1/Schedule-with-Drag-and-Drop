@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import PlusIcon from './icons/PlusIcon.js';
 import TrashIcon from './icons/TrashIcon.js';
@@ -645,7 +646,7 @@ const GanttChart = ({
   }, [tasks]);
 
   return (
-    React.createElement('div', { className: "bg-white rounded-lg shadow-lg flex flex-col max-h-[calc(100vh-16rem)] sm:max-h-[calc(100vh-14rem)]" },
+    React.createElement('div', { className: "bg-white rounded-lg shadow-lg flex flex-col h-[calc(100vh-7rem)] overflow-hidden relative" },
       tooltip?.visible && React.createElement('div', {
         className: "fixed bg-gray-800 text-white text-xs rounded py-1 px-2 pointer-events-none shadow-lg",
         style: {

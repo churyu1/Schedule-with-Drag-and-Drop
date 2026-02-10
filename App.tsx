@@ -257,7 +257,7 @@ const App: React.FC = () => {
                 newStartDate = initialStartDate;
                 newEndDate = addDaysUTC(initialEndDate, dayOffset);
                 if (newEndDate.getTime() > pEnd.getTime()) newEndDate = pEnd;
-                if (newEndDate.getTime() < newStartDate.getTime()) [newEndDate, newStartDate] = [newStartDate, newEndDate];
+                if (newEndDate.getTime() < newStartDate.getTime()) [newEndDate, newStartDate] = [newEndDate, newStartDate];
                 break;
               }
             }
@@ -425,7 +425,7 @@ const App: React.FC = () => {
         />
       )}
       <header className="bg-white shadow-md sticky top-0 z-40">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+        <div className="w-full px-4 py-4 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-slate-700 tracking-tight">
               {t('ganttChartMaker')}
@@ -512,7 +512,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </header>
-      <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="w-full p-2">
         <GanttChart 
           projectName={projectName}
           setProjectName={setProjectName}

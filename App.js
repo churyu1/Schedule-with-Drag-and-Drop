@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import GanttChart from './components/GanttChart.js';
 import { useLanguage } from './contexts/LanguageContext.js';
@@ -421,7 +422,7 @@ const App = () => {
         cancelText: t('cancel'),
       }),
       React.createElement('header', { className: "bg-white shadow-md sticky top-0 z-40" },
-        React.createElement('div', { className: "container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center" },
+        React.createElement('div', { className: "w-full px-4 py-4 flex justify-between items-center" },
           React.createElement('div', null,
             React.createElement('h1', { className: "text-2xl font-bold text-slate-700 tracking-tight" }, t('ganttChartMaker')),
             React.createElement('p', { className: "text-slate-500 mt-1" }, t('appDescription'))
@@ -489,7 +490,7 @@ const App = () => {
           )
         )
       ),
-      React.createElement('main', { className: "container mx-auto p-4 sm:p-6 lg:p-8" },
+      React.createElement('main', { className: "w-full p-2" },
         React.createElement(GanttChart, {
           projectName: projectName,
           setProjectName: setProjectName,
