@@ -1,6 +1,6 @@
 export const translations = {
   ganttChartMaker: { en: 'Schedule with Drag-and-Drop', ja: 'ドラッグして工程表' },
-  appDescription: { en: 'Drag on the timeline to add tasks. Drag tasks to change their duration.', ja: '工程表をドラッグしてタスクを追加｡タスクをドラッグして期間を変更｡' },
+  appDescription: { en: 'Drag on the timeline to add tasks. Drag tasks to change their duration.', ja: '工程表をドラッグしてタスクを追加し､タスクをドラッグして期間を変更｡' },
   projectNameLabel: { en: 'Project Name', ja: 'プロジェクト名' },
   projectNamePlaceholder: { en: 'Enter your project name here', ja: 'ここにプロジェクト名を入力' },
   untitledProject: { en: 'Untitled Project', ja: '無題のプロジェクト' },
@@ -67,6 +67,8 @@ export const translations = {
   exportData: { en: 'Export Data', ja: 'データのエクスポート' },
   importData: { en: 'Import Data', ja: 'データのインポート' },
   importError: { en: 'Failed to import file. Please ensure it is a valid project file.', ja: 'ファイルのインポートに失敗しました。有効なプロジェクトファイルであることを確認してください。' },
+  exportPdf: { en: 'Export PDF', ja: 'PDF出力' },
+  exportPdfError: { en: 'Failed to export PDF.', ja: 'PDF出力に失敗しました。' },
 };
 
 export type TranslationKey = keyof typeof translations;

@@ -729,7 +729,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
   }, [tasks]);
 
   return (
-    <div className="bg-white rounded-lg shadow-lg flex flex-col h-[calc(100vh-7rem)] overflow-hidden relative">
+    <div id="gantt-chart-container" className="bg-white rounded-lg shadow-lg flex flex-col h-[calc(100vh-7rem)] overflow-hidden relative">
       {tooltip?.visible && (
         <div
             className="fixed bg-gray-800 text-white text-xs rounded py-1 px-2 pointer-events-none shadow-lg"
@@ -756,7 +756,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
                 onChange={e => setProjectName(e.target.value)}
                 onFocus={handleInputFocus}
                 placeholder={t('projectNamePlaceholder')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-base font-semibold focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-base font-semibold focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 leading-normal"
               />
             </div>
 
@@ -764,7 +764,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
             <div className="relative w-36 flex-shrink-0">
               <label htmlFor="creationDate" className="block text-sm font-medium text-gray-700 mb-1">{t('creationDate')}</label>
               <div className="relative">
-                <input type="text" id="creationDate" value={creationDate} onChange={e => setCreationDate(e.target.value)} onFocus={handleInputFocus} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" />
+                <input type="text" id="creationDate" value={creationDate} onChange={e => setCreationDate(e.target.value)} onFocus={handleInputFocus} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10 leading-normal" />
                 <button
                   data-calendar-toggle
                   onClick={(e) => openCalendar(e, 'creationDate')}
@@ -798,7 +798,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
                 onChange={e => setCreatorName(e.target.value)}
                 onFocus={handleInputFocus}
                 placeholder={t('creator')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 leading-normal"
               />
             </div>
           </div>
@@ -807,7 +807,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
           <div className="relative">
             <label htmlFor="projectStart" className="block text-sm font-medium text-gray-700 mb-1">{t('projectStartDate')}</label>
             <div className="relative">
-              <input type="text" id="projectStart" value={projectStart} onChange={e => setProjectStart(e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" />
+              <input type="text" id="projectStart" value={projectStart} onChange={e => setProjectStart(e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10 leading-normal" />
               <button
                 data-calendar-toggle
                 onClick={(e) => openCalendar(e, 'projectStart')}
@@ -834,7 +834,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
           <div className="relative">
             <label htmlFor="projectEnd" className="block text-sm font-medium text-gray-700 mb-1">{t('projectEndDate')}</label>
             <div className="relative">
-              <input type="text" id="projectEnd" value={projectEnd} onChange={e => setProjectEnd(e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10" />
+              <input type="text" id="projectEnd" value={projectEnd} onChange={e => setProjectEnd(e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 pr-10 leading-normal" />
               <button
                 data-calendar-toggle
                 onClick={(e) => openCalendar(e, 'projectEnd')}
@@ -859,8 +859,9 @@ const GanttChart: React.FC<GanttChartProps> = ({
         </div>
       </div>
 
-      <div ref={scrollContainerRef} className="relative overflow-auto flex-grow">
+      <div id="gantt-scroll-container" ref={scrollContainerRef} className="relative overflow-auto flex-grow">
         <div
+          id="gantt-grid-container"
           ref={ganttGridRef}
           className="gantt-grid min-w-[1200px] grid relative"
           style={{
@@ -973,7 +974,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
               {/* Task Details Column Cell */}
               <div
                 ref={(el) => { taskRowRefs.current[task.id] = el; }}
-                className={`sticky left-0 bg-white border-b border-r border-gray-200 z-20 flex items-center p-2 gap-1 transition-opacity ${isDragging ? 'opacity-50' : ''}`}
+                className={`sticky left-0 bg-white border-b border-r border-gray-200 z-20 flex items-center px-2 py-0 gap-1 transition-opacity ${isDragging ? 'opacity-50' : ''}`}
                 style={{
                   height: `${rowHeight}px`,
                   gridRow: index + 2,
@@ -989,19 +990,19 @@ const GanttChart: React.FC<GanttChartProps> = ({
                   >
                     <GripVerticalIcon className="w-5 h-5 cursor-grab active:cursor-grabbing"/>
                   </button>
-                  <input type="text" value={task.name} onChange={e => onTaskChange(task.id, 'name', e.target.value)} onFocus={handleInputFocus} placeholder={t('taskNamePlaceholder')} className="flex-grow min-w-0 p-1 border-none focus:ring-0 text-sm"/>
-                  {columnVisibility.assignee && <div className="w-24 flex-shrink-0">
+                  <input type="text" value={task.name} onChange={e => onTaskChange(task.id, 'name', e.target.value)} onFocus={handleInputFocus} placeholder={t('taskNamePlaceholder')} className="flex-grow min-w-0 px-1 py-0 h-full bg-transparent border-none focus:ring-0 text-sm leading-normal"/>
+                  {columnVisibility.assignee && <div className="w-24 flex-shrink-0 h-full flex items-center">
                     <input
                       type="text"
                       value={task.assignee || ''}
                       onChange={e => onTaskChange(task.id, 'assignee', e.target.value)}
                       onFocus={handleInputFocus}
                       placeholder={t('assignee')}
-                      className="w-full p-1 border-none focus:ring-0 text-xs"
+                      className="w-full px-1 py-0 h-full bg-transparent border-none focus:ring-0 text-xs leading-normal"
                     />
                   </div>}
-                  {columnVisibility.startDate && <div className="relative w-24 flex-shrink-0">
-                      <input type="text" value={task.startDate} onChange={e => onTaskChange(task.id, 'startDate', e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full p-1 border-none focus:ring-0 text-xs pr-6"/>
+                  {columnVisibility.startDate && <div className="relative w-24 flex-shrink-0 h-full flex items-center">
+                      <input type="text" value={task.startDate} onChange={e => onTaskChange(task.id, 'startDate', e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full px-1 py-0 h-full bg-transparent border-none focus:ring-0 text-xs pr-6 leading-normal"/>
                       <button
                           data-calendar-toggle
                           onClick={(e) => openCalendar(e, 'taskStartDate', task.id)}
@@ -1026,8 +1027,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
                           />
                       )}
                   </div>}
-                  {columnVisibility.endDate && <div className="relative w-24 flex-shrink-0">
-                      <input type="text" value={task.endDate} onChange={e => onTaskChange(task.id, 'endDate', e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full p-1 border-none focus:ring-0 text-xs pr-6"/>
+                  {columnVisibility.endDate && <div className="relative w-24 flex-shrink-0 h-full flex items-center">
+                      <input type="text" value={task.endDate} onChange={e => onTaskChange(task.id, 'endDate', e.target.value)} placeholder={t('dateFormatPlaceholder')} className="w-full px-1 py-0 h-full bg-transparent border-none focus:ring-0 text-xs pr-6 leading-normal"/>
                       <button
                           data-calendar-toggle
                           onClick={(e) => openCalendar(e, 'taskEndDate', task.id)}
@@ -1052,36 +1053,36 @@ const GanttChart: React.FC<GanttChartProps> = ({
                           />
                       )}
                   </div>}
-                  {columnVisibility.duration && <div className="w-16 flex-shrink-0">
+                  {columnVisibility.duration && <div className="w-16 flex-shrink-0 h-full flex items-center">
                     <input
                       type="number"
                       value={getTaskDuration(task.startDate, task.endDate) || ''}
                       onChange={e => onDurationChange(task, e.target.value)}
                       onFocus={handleInputFocus}
-                      className="w-full p-1 border-none focus:ring-0 text-xs text-center"
+                      className="w-full px-1 py-0 h-full bg-transparent border-none focus:ring-0 text-xs text-center leading-normal"
                       placeholder="-"
                       min="1"
                     />
                   </div>}
-                  {columnVisibility.progress && <div className="w-20 flex-shrink-0 relative">
+                  {columnVisibility.progress && <div className="w-20 flex-shrink-0 relative h-full flex items-center">
                     <input
                       type="number"
                       value={task.progress}
                       onChange={e => onProgressChange(task.id, e.target.value)}
                       onFocus={handleInputFocus}
-                      className="w-full p-1 border-none focus:ring-0 text-xs text-center pr-4"
+                      className="w-full px-1 py-0 h-full bg-transparent border-none focus:ring-0 text-xs text-center pr-4 leading-normal"
                       min="0"
                       max="100"
                     />
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
                   </div>}
-                  {columnVisibility.manHours && <div className="w-20 flex-shrink-0">
+                  {columnVisibility.manHours && <div className="w-20 flex-shrink-0 h-full flex items-center">
                     <input
                       type="number"
                       value={task.manHours ?? ''}
                       onChange={e => onManHoursChange(task.id, e.target.value)}
                       onFocus={handleInputFocus}
-                      className="w-full p-1 border-none focus:ring-0 text-xs text-center"
+                      className="w-full px-1 py-0 h-full bg-transparent border-none focus:ring-0 text-xs text-center leading-normal"
                       placeholder="-"
                       min="0"
                     />
@@ -1158,8 +1159,6 @@ const GanttChart: React.FC<GanttChartProps> = ({
                         if (totalWorkingDays === 0) return null;
                         
                         let completedWorkingDays = totalWorkingDays * (task.progress / 100);
-                        const lightningSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M11.933 3.339a.75.75 0 01.328 1.309l-6 7.5a.75.75 0 01-1.261-.548l2.25-9.75a.75.75 0 011.355-.26l2.328 1.75Z" clip-rule="evenodd" /><path d="M4.583 8.883c.31.043.614.12.906.224l-2.25 9.75a.75.75 0 01-1.355.26L.182 17.367a.75.75 0 01.26-1.025l4.14-1.453Z" /><path d="M12.75 11.25a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5h-4.5a.75.75 0 01-.75-.75Z" /></svg>`;
-                        const lightningDataUrl = `url("data:image/svg+xml;base64,${btoa(lightningSvg.replace('<svg ', `<svg fill='rgba(31, 41, 55, 0.4)' `))}")`;
                         
                         const totalDurationDays = (taskEnd.getTime() - taskStart.getTime()) / (1000 * 3600 * 24) + 1;
                         if (totalDurationDays <= 0) return null;
@@ -1217,8 +1216,6 @@ const GanttChart: React.FC<GanttChartProps> = ({
                                                         style={{ 
                                                             width: `${progressWidthPercent}%`, 
                                                             backgroundColor: progressColor,
-                                                            backgroundImage: lightningDataUrl,
-                                                            backgroundSize: '16px',
                                                         }}
                                                     />
                                                 </div>
@@ -1272,6 +1269,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
         </div>
       </div>
       <button
+        id="add-task-button"
         onClick={onAddTask}
         title={t('addTask')}
         className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all transform hover:scale-110"

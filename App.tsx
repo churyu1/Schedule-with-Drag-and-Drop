@@ -1,18 +1,21 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import GanttChart from './components/GanttChart';
-import { useLanguage } from './contexts/LanguageContext';
-import { translations, TranslationKey } from './lib/translations';
-import SettingsIcon from './components/icons/SettingsIcon';
-import ZoomInIcon from './components/icons/ZoomInIcon';
-import ZoomOutIcon from './components/icons/ZoomOutIcon';
-import ProgressLineIcon from './components/icons/ProgressLineIcon';
-import XIcon from './components/icons/XIcon';
-import SettingsModal from './components/SettingsModal';
-import Calendar from './components/Calendar';
-import { Task } from './types';
-import DownloadIcon from './components/icons/DownloadIcon';
-import UploadIcon from './components/icons/UploadIcon';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import GanttChart from './components/GanttChart.tsx';
+import { useLanguage } from './contexts/LanguageContext.tsx';
+import { translations, TranslationKey } from './lib/translations.ts';
+import SettingsIcon from './components/icons/SettingsIcon.tsx';
+import ZoomInIcon from './components/icons/ZoomInIcon.tsx';
+import ZoomOutIcon from './components/icons/ZoomOutIcon.tsx';
+import ProgressLineIcon from './components/icons/ProgressLineIcon.tsx';
+import XIcon from './components/icons/XIcon.tsx';
+import SettingsModal from './components/SettingsModal.tsx';
+import Calendar from './components/Calendar.tsx';
+import { Task } from './types.ts';
+import DownloadIcon from './components/icons/DownloadIcon.tsx';
+import UploadIcon from './components/icons/UploadIcon.tsx';
+import PdfIcon from './components/icons/PdfIcon.tsx';
 import {
     formatDateUTC,
     addDaysUTC,
@@ -20,8 +23,8 @@ import {
     addWorkingDays,
     addOrSubtractWorkingDays,
     calculateWorkingDays,
-} from './lib/dateUtils';
-import ConfirmModal from './components/ConfirmModal';
+} from './lib/dateUtils.ts';
+import ConfirmModal from './components/ConfirmModal.tsx';
 
 const ZOOM_LEVELS = [8, 12, 18, 24, 40, 64];
 
@@ -392,6 +395,71 @@ const App: React.FC = () => {
       event.target.value = '';
   };
 
+  const handleExportPDF = async () => {
+    const ganttElement = document.getElementById('gantt-chart-container');
+    const scrollContainer = document.getElementById('gantt-scroll-container');
+    const ganttGrid = document.getElementById('gantt-grid-container');
+    const addTaskButton = document.getElementById('add-task-button');
+    
+    if (!ganttElement || !scrollContainer || !ganttGrid) return;
+
+    try {
+      // Save original styles
+      const originalOverflow = scrollContainer.style.overflow;
+      const originalHeight = ganttElement.style.height;
+      const originalMaxHeight = ganttElement.style.maxHeight;
+      const originalWidth = ganttElement.style.width;
+      const originalMaxWidth = ganttElement.style.maxWidth;
+      const originalButtonDisplay = addTaskButton ? addTaskButton.style.display : '';
+      
+      // Temporarily expand the container to fit all content
+      scrollContainer.style.overflow = 'visible';
+      ganttElement.style.height = 'auto';
+      ganttElement.style.maxHeight = 'none';
+      ganttElement.style.width = `${Math.max(ganttElement.scrollWidth, ganttGrid.scrollWidth)}px`;
+      ganttElement.style.maxWidth = 'none';
+      if (addTaskButton) addTaskButton.style.display = 'none';
+
+      // Wait a moment for the DOM to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const canvas = await html2canvas(ganttElement, {
+        scale: 2,
+        useCORS: true,
+        windowWidth: ganttElement.scrollWidth,
+        windowHeight: ganttElement.scrollHeight,
+      });
+
+      // Restore original styles
+      scrollContainer.style.overflow = originalOverflow;
+      ganttElement.style.height = originalHeight;
+      ganttElement.style.maxHeight = originalMaxHeight;
+      ganttElement.style.width = originalWidth;
+      ganttElement.style.maxWidth = originalMaxWidth;
+      if (addTaskButton) addTaskButton.style.display = originalButtonDisplay;
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = (today.getMonth() + 1).toString().padStart(2, '0');
+      const day = today.getDate().toString().padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day}`;
+
+      pdf.save(`Schedule_${formattedDate}.pdf`);
+    } catch (error) {
+      console.error('Failed to export PDF:', error);
+      alert(t('exportPdfError'));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 text-gray-800 font-sans">
       {isSettingsModalOpen && (
@@ -500,6 +568,10 @@ const App: React.FC = () => {
                 <div className="h-6 border-l border-gray-300"></div>
                 <button onClick={handleExport} className="p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors" title={t('exportData')}>
                     <DownloadIcon className="w-5 h-5" />
+                </button>
+                <div className="h-6 border-l border-gray-300"></div>
+                <button onClick={handleExportPDF} className="p-2 rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors" title={t('exportPdf')}>
+                    <PdfIcon className="w-5 h-5" />
                 </button>
             </div>
             <button
