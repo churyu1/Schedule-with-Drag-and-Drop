@@ -405,7 +405,7 @@ const App: React.FC = () => {
 
     try {
       // Save original styles
-      const originalOverflow = scrollContainer.style.overflow;
+      const originalOverflow = ganttGrid.style.overflow;
       const originalHeight = ganttElement.style.height;
       const originalMaxHeight = ganttElement.style.maxHeight;
       const originalWidth = ganttElement.style.width;
@@ -413,7 +413,7 @@ const App: React.FC = () => {
       const originalButtonDisplay = addTaskButton ? addTaskButton.style.display : '';
       
       // Temporarily expand the container to fit all content
-      scrollContainer.style.overflow = 'visible';
+      ganttGrid.style.overflow = 'visible';
       ganttElement.style.height = 'auto';
       ganttElement.style.maxHeight = 'none';
       ganttElement.style.width = `${Math.max(ganttElement.scrollWidth, ganttGrid.scrollWidth)}px`;
@@ -431,7 +431,7 @@ const App: React.FC = () => {
       });
 
       // Restore original styles
-      scrollContainer.style.overflow = originalOverflow;
+      ganttGrid.style.overflow = originalOverflow;
       ganttElement.style.height = originalHeight;
       ganttElement.style.maxHeight = originalMaxHeight;
       ganttElement.style.width = originalWidth;

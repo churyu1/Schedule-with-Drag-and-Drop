@@ -859,14 +859,17 @@ const GanttChart: React.FC<GanttChartProps> = ({
         </div>
       </div>
 
-      <div id="gantt-scroll-container" ref={scrollContainerRef} className="relative overflow-auto flex-grow">
+      <div id="gantt-scroll-container" className="relative flex-grow flex flex-col min-h-0">
         <div
           id="gantt-grid-container"
-          ref={ganttGridRef}
-          className="gantt-grid min-w-[1200px] grid relative"
+          ref={(el) => {
+            if (ganttGridRef) (ganttGridRef as any).current = el;
+            if (scrollContainerRef) (scrollContainerRef as any).current = el;
+          }}
+          className="gantt-grid min-w-full grid relative overflow-auto flex-grow content-start"
           style={{
-            gridTemplateColumns: `auto 1fr`,
-            gridTemplateRows: `auto repeat(${tasks.length}, ${rowHeight}px)`,
+            gridTemplateColumns: `max-content 1fr`,
+            gridTemplateRows: `max-content repeat(${tasks.length}, ${rowHeight}px)`,
           }}
         >
           {/* Top-left corner */}
@@ -936,18 +939,17 @@ const GanttChart: React.FC<GanttChartProps> = ({
                 } else if (span > 1) {
                   borderClass = 'border-gray-300';
                 }
-                const containerAlignmentClass = span === 1 ? 'justify-center' : 'justify-start pl-1';
-                const textAlignmentClass = span === 1 ? 'items-center' : 'items-start';
+                const textAlignClass = span === 1 ? 'text-center' : 'text-left pl-1';
 
                 return (
                   <div 
                     key={index} 
-                    className={`text-xs border-r ${borderClass} flex ${containerAlignmentClass} items-center h-full ${isHoliday ? 'bg-red-50' : 'bg-slate-50'} ${dayColorClass} overflow-hidden`}
+                    className={`text-xs border-r ${borderClass} ${isHoliday ? 'bg-red-50' : 'bg-slate-50'} ${dayColorClass} overflow-hidden ${textAlignClass} relative h-[36px]`}
                     style={{ gridColumn: `span ${span}` }}
                   >
-                      <div className={`flex flex-col ${textAlignmentClass} justify-center h-full`}>
-                        <span className="whitespace-nowrap leading-none">{date.getUTCDate()}</span>
-                        <span className="text-[10px] leading-none whitespace-nowrap">{dayOfWeek}</span>
+                      <div className="absolute top-[4px] left-0 right-0">
+                        <div className="whitespace-nowrap leading-[14px]">{date.getUTCDate()}</div>
+                        <div className="text-[10px] leading-[12px] whitespace-nowrap">{dayOfWeek}</div>
                       </div>
                   </div>
                 );
@@ -1226,12 +1228,12 @@ const GanttChart: React.FC<GanttChartProps> = ({
 
                                 {/* Foreground Interaction & Text Layer */}
                                 <div
-                                    className="group/bar cursor-move px-3 text-sm font-medium flex items-center"
+                                    className="group/bar cursor-move px-3 text-sm font-medium h-full relative"
                                     style={{ ...interactionLayerStyle, touchAction: 'none' }}
                                     onMouseDown={(e) => handleDragStart(e, task, 'move')}
                                     onTouchStart={(e) => handleDragStart(e, task, 'move')}
                                 >
-                                    <span className="whitespace-nowrap">{task.name}</span>
+                                    <span className="whitespace-nowrap absolute left-3 top-[9px] leading-none">{task.name}</span>
                                     <div
                                         className="absolute left-0 top-0 h-full w-2 cursor-ew-resize"
                                         onMouseDown={(e) => handleDragStart(e, task, 'resize-start')}
