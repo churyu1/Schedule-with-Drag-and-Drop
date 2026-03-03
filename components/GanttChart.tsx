@@ -663,25 +663,29 @@ const GanttChart: React.FC<GanttChartProps> = ({
                 if (totalWorkDays > 0) {
                     let completedWorkDays = totalWorkDays * (task.progress / 100);
                     
-                    let currentPosDate = new Date(startDate.getTime());
-                    let pixelOffset = 0;
+                    const segments = getTaskSegments(task);
+                    if (segments.length > 0) {
+                        const visualStartDate = segments[0].startDate;
+                        let currentPosDate = new Date(visualStartDate.getTime());
+                        let pixelOffset = 0;
 
-                    while(completedWorkDays > 0 && currentPosDate.getTime() <= endDate.getTime()) {
-                        if(!holidays.has(currentPosDate.getUTCDay())){
-                           const consumption = Math.min(1, completedWorkDays);
-                           pixelOffset += consumption * dayWidth;
-                           completedWorkDays -= consumption;
-                        } else {
-                           pixelOffset += dayWidth;
+                        while(completedWorkDays > 0 && currentPosDate.getTime() <= endDate.getTime()) {
+                            if(!holidays.has(currentPosDate.getUTCDay())){
+                               const consumption = Math.min(1, completedWorkDays);
+                               pixelOffset += consumption * dayWidth;
+                               completedWorkDays -= consumption;
+                            } else {
+                               pixelOffset += dayWidth;
+                            }
+                            
+                            if (completedWorkDays > 0) {
+                              currentPosDate.setUTCDate(currentPosDate.getUTCDate() + 1);
+                            }
                         }
-                        
-                        if (completedWorkDays > 0) {
-                          currentPosDate.setUTCDate(currentPosDate.getUTCDate() + 1);
+                        const startIndex = dateArray.findIndex(d => d.getTime() === visualStartDate.getTime());
+                        if(startIndex !== -1) {
+                            currentTaskX = (startIndex * dayWidth) + pixelOffset;
                         }
-                    }
-                    const startIndex = dateArray.findIndex(d => d.getTime() === startDate.getTime());
-                    if(startIndex !== -1) {
-                        currentTaskX = (startIndex * dayWidth) + pixelOffset;
                     }
                 }
             }
